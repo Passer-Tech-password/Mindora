@@ -1,0 +1,97 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwnUser(uid) {
+      return request.auth.uid == uid;
+    }
+
+    function docExists(path) {
+      return exists(/databases/$(database)/documents/$(path));
+    }
+
+    // -------------------- Users --------------------
+    match /users/{uid} {
+      allow read: if isSignedIn() && isOwnUser(uid);
+      allow create: if isSignedIn() && isOwnUser(uid)
+        && !(request.resource.data.keys().hasAny(['subscriptionStatus', 'role', 'admin', 'uid']));
+      allow update: if isSignedIn() && isOwnUser(uid)
+        && !(request.resource.data.diff(resource.data).affectedKeys().hasAny(['subscriptionStatus', 'role', 'admin', 'uid', 'createdAt']));
+      allow delete: if false;
+    }
+
+    // -------------------- Posts --------------------
+    match /posts/{postId} {
+      function isPostAuthor() {
+        return isSignedIn() && request.auth.uid == resource.data.authorId;
+      }
+      function isPostAuthorCreate() {
+        return isSignedIn() && request.auth.uid == request.resource.data.authorId;
+      }
+      allow read: if true;
+      allow create: if isPostAuthorCreate()
+        && !(request.resource.data.keys().hasAny(['likesCount', 'commentsCount', 'createdAt']))
+        && docExists('users/' + request.auth.uid);
+      allow update: if isPostAuthor()
+        && !(request.resource.data.diff(resource.data).affectedKeys().hasAny(['authorId', 'likesCount', 'commentsCount', 'createdAt']));
+      allow delete: if isPostAuthor();
+    }
+
+    // -------------------- Comments --------------------
+    match /comments/{commentId} {
+      function isCommentAuthor() {
+        return isSignedIn() && request.auth.uid == resource.data.authorId;
+      }
+      function isCommentAuthorCreate() {
+        return isSignedIn() && request.auth.uid == request.resource.data.authorId;
+      }
+      allow read: if true;
+      allow create: if isCommentAuthorCreate()
+        && docExists('posts/' + request.resource.data.postId)
+        && !(request.resource.data.keys().hasAny(['likesCount', 'createdAt']));
+      allow update: if isCommentAuthor()
+        && !(request.resource.data.diff(resource.data).affectedKeys().hasAny(['authorId', 'postId', 'likesCount', 'createdAt']));
+      allow delete: if isCommentAuthor();
+    }
+
+    // -------------------- Likes --------------------
+    match /likes/{likeId} {
+      function likeMatchesUser(userId) {
+        return request.auth.uid == userId;
+      }
+      allow read: if true;
+      allow create: if isSignedIn()
+        && request.resource.data.keys().hasOnly(['postId', 'userId', 'createdAt'])
+        && likeMatchesUser(request.resource.data.userId)
+        && docExists('posts/' + request.resource.data.postId);
+      allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow update: if false;
+    }
+
+    // -------------------- Reports --------------------
+    match /reports/{reportId} {
+      allow read: if false;
+      allow create: if isSignedIn()
+        && request.resource.data.reporterId == request.auth.uid
+        && request.resource.data.keys().hasAll(['targetType', 'targetId', 'reporterId', 'reason', 'createdAt', 'status'])
+        && request.resource.data.status == 'pending';
+      allow update, delete: if false;
+    }
+
+    // -------------------- Community Challenges --------------------
+    match /communityChallenges/{challengeId} {
+      allow read: if true;
+      allow create, update, delete: if false;
+    }
+
+    // -------------------- Notifications --------------------
+    match /notifications/{notifId} {
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create, update, delete: if false;
+    }
+  }
+}
