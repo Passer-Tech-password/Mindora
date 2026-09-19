@@ -5,30 +5,52 @@ import { useRouter, usePathname } from "next/navigation";
 import { Loader2, ShieldAlert, ArrowRight, LogIn } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/Button";
-import { useAuth } from "./AuthContext";
+import { useAuth, getAdminEmails } from "./AuthContext";
+
+function resolveNormalizedRole(user: ReturnType<typeof useAuth>["user"]): "admin" | "user" | null {
+  if (!user || !user.email) return null;
+  const adminEmails = getAdminEmails();
+  const email = String(user.email).toLowerCase();
+  if (adminEmails.includes(email)) return "admin";
+  return (user.role === "admin" ? "admin" : "user");
+}
 
 export function AdminRoute({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
+  const redirected = React.useRef<"login" | "dashboard" | null>(null);
+  const checkedAfterSettle = React.useRef(false);
 
   const redirectTo = React.useMemo(() => {
     if (typeof window === "undefined") return "/admin";
     return pathname || "/admin";
   }, [pathname]);
 
+  const role = React.useMemo(() => resolveNormalizedRole(user), [user]);
+  const settled = !isLoading && (user !== null || checkedAfterSettle.current);
+
+  React.useEffect(() => {
+    if (isLoading) return;
+    checkedAfterSettle.current = true;
+  }, [isLoading]);
+
   React.useEffect(() => {
     if (isLoading) return;
     if (!user) {
-      router.replace("/login?from=" + encodeURIComponent(redirectTo));
+      if (redirected.current !== "login") {
+        redirected.current = "login";
+        router.replace("/login?from=" + encodeURIComponent(redirectTo));
+      }
       return;
     }
-    if (user.role !== "admin") {
+    if (role === "user" && redirected.current !== "dashboard") {
+      redirected.current = "dashboard";
       router.replace("/dashboard");
     }
-  }, [user, isLoading, router, redirectTo]);
+  }, [user, isLoading, role, router, redirectTo]);
 
-  if (isLoading) {
+  if (isLoading || !settled) {
     return (
       <div className="min-h-screen w-full bg-softLavender/30 flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
@@ -63,7 +85,7 @@ export function AdminRoute({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (user.role !== "admin") {
+  if (role !== "admin") {
     return (
       <div className="min-h-screen w-full bg-softLavender/40 flex items-center justify-center p-6">
         <div className="max-w-md w-full bg-offWhite rounded-3xl shadow-card border border-softLavender p-8 text-center">
