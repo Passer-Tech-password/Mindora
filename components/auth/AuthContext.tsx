@@ -439,30 +439,50 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   React.useEffect(() => {
     try {
       ensureSeeds();
-      const raw = typeof window !== "undefined" ? localStorage.getItem(STORAGE_KEY) : null;
-      if (raw) {
-        const parsed = JSON.parse(raw) as MindoraUser;
-        if (parsed && parsed.email) {
-          const resolved: MindoraUser = {
-            ...parsed,
-            role: (parsed.role as MindoraUser["role"]) || "user",
-          };
-          setUser(resolved);
+      if (typeof window !== "undefined") {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw) as MindoraUser | undefined | null;
+          if (parsed && parsed.email) {
+            const email = String(parsed.email).toLowerCase();
+            const normalisedRole: MindoraUser["role"] = ADMIN_EMAILS.includes(email)
+              ? "admin"
+              : ((parsed.role as MindoraUser["role"] | undefined) ?? "user");
+            const resolved: MindoraUser = {
+              ...parsed,
+              role: normalisedRole,
+              plan: normalisedRole === "admin" ? (parsed.plan === "premium" ? "premium" : "premium") : (parsed.plan ?? "free"),
+            };
+            setUser(resolved);
+          }
         }
       }
     } catch {
-      // ignore
+      /* ignore */
     } finally {
       setIsLoading(false);
     }
   }, [ensureSeeds]);
 
   const persist = React.useCallback((u: MindoraUser | null) => {
-    setUser(u);
-    if (typeof window === "undefined") return;
     if (u) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(u));
-    } else {
+      const email = String(u.email ?? "").toLowerCase();
+      const normalisedRole: MindoraUser["role"] = ADMIN_EMAILS.includes(email)
+        ? "admin"
+        : ((u.role as MindoraUser["role"] | undefined) ?? "user");
+      const normalised: MindoraUser = {
+        ...u,
+        role: normalisedRole,
+        plan: normalisedRole === "admin" ? (u.plan === "premium" ? u.plan : "premium") : (u.plan ?? "free"),
+      };
+      setUser(normalised);
+      if (typeof window !== "undefined") {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(normalised));
+      }
+      return;
+    }
+    setUser(null);
+    if (typeof window !== "undefined") {
       localStorage.removeItem(STORAGE_KEY);
     }
   }, []);
