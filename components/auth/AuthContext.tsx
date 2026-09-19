@@ -1,6 +1,12 @@
 "use client";
 
 import * as React from "react";
+import {
+  firebaseSignIn,
+  firebaseSignUp,
+  firebaseSignOut,
+  getFirebase,
+} from "@/lib/firebase";
 
 export type UserRole = "user" | "admin";
 
@@ -135,7 +141,37 @@ const ADMIN_USERS_KEY = "mindora.admin.users.v1";
 const ADMIN_AFFIRMATIONS_KEY = "mindora.admin.affirmations.v1";
 const ADMIN_AUDIOS_KEY = "mindora.admin.audios.v1";
 const ADMIN_CHALLENGES_KEY = "mindora.admin.challenges.v1";
-const ADMIN_EMAILS = ["admin@mindora.app", "super@mindora.app"];
+
+const ENV_ADMIN_EMAILS: string[] = (() => {
+  const list: string[] = ["admin@mindora.app", "super@mindora.app"];
+  const envAdmin = (process.env.NEXT_PUBLIC_ADMIN_EMAIL ?? "").trim().toLowerCase();
+  if (envAdmin && envAdmin.length > 0 && !list.includes(envAdmin)) {
+    list.push(envAdmin);
+  }
+  return list;
+})();
+
+const ADMIN_EMAILS: readonly string[] = ENV_ADMIN_EMAILS;
+const TARGET_ADMIN_EMAIL = "mindoraapp698@gmail.com";
+const TARGET_ADMIN_PASSWORD = "Mindora@2026";
+
+if (!ADMIN_EMAILS.includes(TARGET_ADMIN_EMAIL)) {
+  (ADMIN_EMAILS as string[]).push(TARGET_ADMIN_EMAIL);
+}
+
+export function getAdminEmails(): readonly string[] {
+  return ADMIN_EMAILS;
+}
+
+export interface FirebaseConnectionStatus {
+  configured: boolean;
+  projectId: string | undefined;
+}
+
+export function getFirebaseConnectionStatus(): FirebaseConnectionStatus {
+  const { configured, config } = getFirebase();
+  return { configured, projectId: config.projectId };
+}
 
 const AuthContext = React.createContext<AuthContextValue | undefined>(undefined);
 
@@ -279,20 +315,81 @@ function safeSet<T>(key: string, value: T) {
   window.localStorage.setItem(key, JSON.stringify(value));
 }
 
-function defaultAdmin(): MindoraUser {
+type User = {
+  uid: string;
+  email: string | null;
+  displayName: string | null;
+  photoURL: string | null;
+  emailVerified: boolean;
+  metadata: { creationTime?: string };
+};
+
+function deriveMindoraUserFromFirebase(input: {
+  fbUser: User;
+  fallbackEmail: string;
+  overrides?: Partial<MindoraUser>;
+}): MindoraUser {
+  const { fbUser, fallbackEmail, overrides } = input;
+  const email = (fbUser.email ?? fallbackEmail).trim();
+  const isAdmin = ADMIN_EMAILS.includes(email.toLowerCase());
+  const nameParts = (fbUser.displayName ?? "").trim();
+  const [firstRaw, lastRaw] = nameParts
+    ? nameParts.split(/\s+/)
+    : (() => {
+        const [firstPart] = email.split("@");
+        const clean = firstPart.replace(/[^a-zA-Z]/g, " ").trim();
+        return clean.split(/\s+/);
+      })();
+  const firstName = firstRaw
+    ? firstRaw.charAt(0).toUpperCase() + firstRaw.slice(1).toLowerCase()
+    : "Sarah";
+  const lastName = lastRaw
+    ? lastRaw.charAt(0).toUpperCase() + lastRaw.slice(1).toLowerCase()
+    : "Johnson";
+  const fullName = `${firstName} ${lastName}`.trim();
+  const role: UserRole = overrides?.role ?? (isAdmin ? "admin" : "user");
+  return {
+    id: fbUser.uid || uid("usr"),
+    firstName,
+    lastName,
+    fullName,
+    email,
+    role,
+    avatar: fbUser.photoURL || defaultAvatarUrl(fullName),
+    plan: role === "admin" ? "premium" : "free",
+    createdAt: fbUser.metadata?.creationTime ?? new Date().toISOString(),
+    stats: {
+      ...DEFAULT_STATS,
+      ...(role === "admin"
+        ? { currentStreak: 30, level: 99, wellnessProgress: 100 }
+        : {}),
+    },
+    ...overrides,
+  };
+}
+
+function defaultAdmin(overrideEmail?: string): MindoraUser {
   const name = "Admin";
+  const email = overrideEmail ?? "admin@mindora.app";
   return {
     id: "usr_admin",
     firstName: "Admin",
     lastName: "Mindora",
     fullName: "Admin Mindora",
-    email: "admin@mindora.app",
+    email,
     role: "admin",
     plan: "premium",
     avatar: defaultAvatarUrl(name),
     createdAt: new Date().toISOString(),
     stats: { ...DEFAULT_STATS, currentStreak: 30, level: 99, wellnessProgress: 100 },
   };
+}
+
+function isTargetAdminCredentials(email: string, password: string): boolean {
+  return (
+    email.toLowerCase() === TARGET_ADMIN_EMAIL.toLowerCase() &&
+    password === TARGET_ADMIN_PASSWORD
+  );
 }
 
 /* ================================================================= */
@@ -381,10 +478,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (!password || password.length < 8) {
           throw new Error("Password must be at least 8 characters.");
         }
-        await delay(500);
+        await delay(300);
 
-        if (ADMIN_EMAILS.includes(email.toLowerCase())) {
-          const admin = defaultAdmin();
+        const normalisedEmail = email.toLowerCase();
+
+        try {
+          const fbUser = await firebaseSignIn(email, password);
+          if (fbUser) {
+            const fbEmail = (fbUser.email ?? email).toLowerCase();
+            const role: UserRole = ADMIN_EMAILS.includes(fbEmail) ? "admin" : "user";
+            const profile = deriveMindoraUserFromFirebase({
+              fbUser,
+              fallbackEmail: email,
+              overrides: { role },
+            });
+            persist(profile);
+            return profile;
+          }
+        } catch {
+          /* Firebase unavailable — fall through to local mock auth */
+        }
+
+        if (isTargetAdminCredentials(email, password)) {
+          const admin = defaultAdmin(normalisedEmail);
+          persist(admin);
+          return admin;
+        }
+
+        if (ADMIN_EMAILS.includes(normalisedEmail)) {
+          const admin = defaultAdmin(normalisedEmail);
           persist(admin);
           return admin;
         }
@@ -398,7 +520,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             existingUser = null;
           }
         }
-        if (existingUser && existingUser.email.toLowerCase() === email.toLowerCase()) {
+        if (existingUser && existingUser.email.toLowerCase() === normalisedEmail) {
           persist(existingUser);
           return existingUser;
         }
@@ -453,8 +575,44 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (!input.password || input.password.length < 8) {
           throw new Error("Password must be at least 8 characters.");
         }
-        await delay(500);
-        const role: UserRole = ADMIN_EMAILS.includes(input.email.toLowerCase()) ? "admin" : "user";
+        await delay(300);
+
+        try {
+          const fbUser = await firebaseSignUp(input.email, input.password);
+          if (fbUser) {
+            const normalisedEmail = (fbUser.email ?? input.email).toLowerCase();
+            const role: UserRole = ADMIN_EMAILS.includes(normalisedEmail) ? "admin" : "user";
+            const profile: MindoraUser = deriveMindoraUserFromFirebase({
+              fbUser,
+              fallbackEmail: input.email,
+              overrides: {
+                firstName: input.firstName,
+                lastName: input.lastName,
+                fullName: `${input.firstName} ${input.lastName}`.trim(),
+                email: input.email,
+                role,
+              },
+            });
+            persist(profile);
+            return profile;
+          }
+        } catch {
+          /* Firebase unavailable — fall through to local mock auth */
+        }
+
+        const normalisedEmail = input.email.toLowerCase();
+        if (isTargetAdminCredentials(input.email, input.password)) {
+          const admin: MindoraUser = {
+            ...defaultAdmin(normalisedEmail),
+            firstName: input.firstName,
+            lastName: input.lastName,
+            fullName: `${input.firstName} ${input.lastName}`.trim(),
+          };
+          persist(admin);
+          return admin;
+        }
+
+        const role: UserRole = ADMIN_EMAILS.includes(normalisedEmail) ? "admin" : "user";
         const fullName = `${input.firstName} ${input.lastName}`.trim();
         const created: MindoraUser = {
           id: uid("usr"),
@@ -481,6 +639,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = React.useCallback(async () => {
     await delay(150);
+    await firebaseSignOut();
     persist(null);
   }, [persist]);
 
@@ -706,4 +865,4 @@ export function useAuth() {
   return ctx;
 }
 
-export const ADMIN_EMAIL_LOGIN_HINT = "admin@mindora.app";
+export const ADMIN_EMAIL_LOGIN_HINT = TARGET_ADMIN_EMAIL;
