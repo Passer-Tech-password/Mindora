@@ -4,6 +4,19 @@
 .pnp.js
 .yarn/install-state.gz
 
+# firebase local tooling & functions artifacts
+firebase-debug.log
+firebase-debug.log.*
+.firebaserc-localhost
+.firebase/
+functions/node_modules/
+functions/.runtimeconfig.json
+functions/lib/
+functions/dist/
+firestore-debug.log
+pubsub-debug.log
+ui-debug.log
+
 # testing
 /coverage
 
