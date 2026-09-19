@@ -153,6 +153,15 @@ export function DashboardClient() {
   const [audioProgress, setAudioProgress] = React.useState(34);
   const [volume, setVolume] = React.useState(70);
 
+  React.useEffect(() => {
+    if (!sidebarOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setSidebarOpen(false);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [sidebarOpen]);
+
   const greeting = user ? greetingFor(user.fullName) : greetingFor("Friend");
 
   if (!user) return null;
@@ -419,7 +428,7 @@ export function DashboardClient() {
             {/* LEFT COLUMN */}
             <div className="space-y-6 lg:space-y-8">
               {/* Mood Check-in + Daily Affirmation + 14 Day Streak row */}
-              <div className="grid gap-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,1.2fr)_minmax(0,0.8fr)]">
+              <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,1.2fr)_minmax(0,0.8fr)]">
                 {/* MOOD */}
                 <section className="rounded-3xl bg-white border border-lavender/50 shadow-card p-5 md:p-6">
                   <div className="flex items-start justify-between mb-5">
@@ -437,7 +446,7 @@ export function DashboardClient() {
                       </div>
                     </div>
                   </div>
-                  <div className="grid grid-cols-6 gap-2 md:gap-3">
+                  <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 md:gap-3">
                     {MOODS.map((m) => {
                       const picked = moodPicked === m.label;
                       return (

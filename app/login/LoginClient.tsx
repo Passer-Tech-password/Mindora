@@ -8,7 +8,7 @@ import { useAuth } from "@/components/auth/AuthContext";
 import { Mail, Lock, ArrowRight, Loader2, AlertCircle } from "lucide-react";
 
 export default function LoginClient() {
-  const { login, error, isLoading } = useAuth();
+  const { login, error, isLoading, user } = useAuth();
   const router = useRouter();
   const params = useSearchParams();
 
@@ -17,23 +17,37 @@ export default function LoginClient() {
   const [localError, setLocalError] = React.useState<string | null>(null);
   const [submitting, setSubmitting] = React.useState(false);
 
-  const from = React.useMemo(() => {
+  const explicitFrom = React.useMemo(() => {
     const raw = params.get("from");
-    if (!raw) return "/dashboard";
+    if (!raw) return null;
     try {
-      return decodeURIComponent(raw.startsWith("/") ? raw : "/dashboard");
+      const decoded = decodeURIComponent(raw.startsWith("/") ? raw : "/dashboard");
+      if (decoded === "/admin" || decoded === "/dashboard") return decoded;
+      if (decoded.startsWith("/admin/") || decoded.startsWith("/dashboard/")) return decoded;
+      return null;
     } catch {
-      return "/dashboard";
+      return null;
     }
   }, [params]);
+
+  const defaultFor = (role: "admin" | "user") => (role === "admin" ? "/admin" : "/dashboard");
 
   const onSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLocalError(null);
     setSubmitting(true);
     try {
-      await login(email, password);
-      router.push(from);
+      const authenticated = await login(email, password);
+      const role = authenticated.role === "admin" ? "admin" : "user";
+      const fallback = defaultFor(role);
+      const target = explicitFrom
+        ? role === "admin" && explicitFrom.startsWith("/dashboard")
+          ? fallback
+          : role === "user" && explicitFrom.startsWith("/admin")
+            ? defaultFor("user")
+            : explicitFrom
+        : fallback;
+      router.push(target);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Unable to log in.";
       setLocalError(msg);

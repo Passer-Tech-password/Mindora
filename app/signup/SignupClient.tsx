@@ -28,8 +28,9 @@ export default function SignupClient() {
     }
     setSubmitting(true);
     try {
-      await signup({ firstName, lastName, email, password });
-      router.push("/dashboard");
+      const created = await signup({ firstName, lastName, email, password });
+      const role = created.role === "admin" ? "admin" : "user";
+      router.push(role === "admin" ? "/admin" : "/dashboard");
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Unable to create your account.";
       setLocalError(msg);

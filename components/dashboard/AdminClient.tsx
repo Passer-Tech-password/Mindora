@@ -323,6 +323,15 @@ export function AdminClient() {
   }, [fetchStats]);
 
   React.useEffect(() => {
+    if (!mobileOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMobileOpen(false);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [mobileOpen]);
+
+  React.useEffect(() => {
     if (!confirmToast) return;
     const t = setTimeout(() => setConfirmToast(null), 2600);
     return () => clearTimeout(t);
@@ -373,8 +382,8 @@ export function AdminClient() {
         </div>
 
         {/* User Growth + Content Distribution */}
-        <div className="grid grid-cols-1 xl:grid-cols-5 gap-4 mt-4">
-          <div className="xl:col-span-3 rounded-2xl bg-offWhite border border-softLavender shadow-soft p-5">
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 mt-4">
+          <div className="lg:col-span-3 rounded-2xl bg-offWhite border border-softLavender shadow-soft p-5">
             <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
               <div>
                 <div className="text-base font-bold text-brandText">User Growth</div>
@@ -408,7 +417,7 @@ export function AdminClient() {
             <UserGrowthChart data={stats.usersGrowthLast30D} />
           </div>
 
-          <div className="xl:col-span-2 rounded-2xl bg-offWhite border border-softLavender shadow-soft p-5">
+          <div className="lg:col-span-2 rounded-2xl bg-offWhite border border-softLavender shadow-soft p-5">
             <div className="mb-4">
               <div className="text-base font-bold text-brandText">Content Distribution</div>
               <div className="text-xs text-brandText/60">Community posts by category</div>
@@ -418,8 +427,8 @@ export function AdminClient() {
         </div>
 
         {/* Recent Users + Top Topics */}
-        <div className="grid grid-cols-1 xl:grid-cols-5 gap-4 mt-4">
-          <div className="xl:col-span-3 rounded-2xl bg-offWhite border border-softLavender shadow-soft p-5">
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 mt-4">
+          <div className="lg:col-span-3 rounded-2xl bg-offWhite border border-softLavender shadow-soft p-5">
             <div className="flex items-center justify-between mb-4">
               <div>
                 <div className="text-base font-bold text-brandText">Recent Users</div>
@@ -650,15 +659,16 @@ export function AdminClient() {
       {mobileOpen && (
         <div
           onClick={() => setMobileOpen(false)}
-          className="fixed inset-0 z-30 bg-brandText/40 backdrop-blur-sm xl:hidden"
+          role="presentation"
+          className="fixed inset-0 z-30 bg-brandText/40 backdrop-blur-sm lg:hidden"
         />
       )}
 
       <div className="flex w-full">
         {/* Sidebar */}
         <aside
-          className={`fixed xl:sticky top-0 z-40 h-screen w-64 shrink-0 bg-offWhite/90 backdrop-blur-xl border-r border-softLavender flex flex-col transition-transform duration-300 ${
-            mobileOpen ? "translate-x-0" : "-translate-x-full xl:translate-x-0"
+          className={`fixed lg:sticky top-0 z-40 h-screen w-64 shrink-0 bg-offWhite/90 backdrop-blur-xl border-r border-softLavender flex flex-col transition-transform duration-300 ${
+            mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
           }`}
         >
           <div className="px-5 pt-6 pb-5 flex items-center gap-3">
@@ -734,7 +744,7 @@ export function AdminClient() {
             <div className="flex items-center gap-3 px-4 md:px-6 py-4">
               <button
                 onClick={() => setMobileOpen(true)}
-                className="h-10 w-10 rounded-2xl hover:bg-softLavender flex xl:hidden items-center justify-center text-brandText"
+                className="h-10 w-10 rounded-2xl hover:bg-softLavender flex lg:hidden items-center justify-center text-brandText"
                 aria-label="Open menu"
               >
                 <div className="flex flex-col gap-[5px]">
@@ -805,8 +815,8 @@ export function AdminClient() {
           </header>
 
           {/* Page content */}
-          <section className="px-4 md:px-6 py-6 grid grid-cols-1 xl:grid-cols-12 gap-4">
-            <div className="xl:col-span-9 space-y-4">
+          <section className="px-4 md:px-6 py-6 grid grid-cols-1 lg:grid-cols-12 gap-4">
+            <div className="lg:col-span-9 space-y-4">
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
                   <div className="text-xs uppercase tracking-[0.18em] text-brightPurple font-bold mb-1">
@@ -1051,7 +1061,7 @@ export function AdminClient() {
             </div>
 
             {/* Right column */}
-            <aside className="xl:col-span-3 space-y-4">
+            <aside className="lg:col-span-3 space-y-4">
               {/* Quick Actions */}
               <div className="rounded-2xl bg-offWhite border border-softLavender shadow-soft p-5">
                 <div className="text-base font-bold text-brandText mb-3">Quick Actions</div>
