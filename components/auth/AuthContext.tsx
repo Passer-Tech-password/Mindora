@@ -7,6 +7,13 @@ import {
   firebaseSignOut,
   getFirebase,
 } from "@/lib/firebase";
+import {
+  callables,
+  type MoodRecord,
+  type SavedItemRecord as FunctionsSavedItemRecord,
+} from "@/lib/firebase/functions";
+
+export type SavedItemRecord = FunctionsSavedItemRecord;
 
 export type UserRole = "user" | "admin";
 
@@ -101,6 +108,26 @@ export interface AdminStats {
   };
 }
 
+export interface CommunityPostRecord {
+  id: string;
+  authorId: string;
+  authorName: string;
+  isAnonymous: boolean;
+  category: string;
+  content: string;
+  createdAt: string;
+  likesCount: number;
+  commentsCount: number;
+}
+
+export interface DailyAffirmation {
+  id: string;
+  text: string;
+  category: string;
+  author: string;
+  date: string;
+}
+
 interface AuthContextValue {
   user: MindoraUser | null;
   isLoading: boolean;
@@ -115,7 +142,7 @@ interface AuthContextValue {
   logout: () => Promise<void>;
   updateProfile: (patch: Partial<MindoraUser>) => void;
 
-  // Admin-only data APIs (mock, client-side)
+  // Admin-only data APIs
   getAdminStats: () => Promise<AdminStats>;
   listUsers: () => Promise<MindoraUser[]>;
   deleteUser: (userId: string) => Promise<void>;
@@ -134,6 +161,27 @@ interface AuthContextValue {
   listChallenges: () => Promise<ChallengeItem[]>;
 
   reviewReport: (reportId: string, status: CommunityReport["status"]) => Promise<void>;
+
+  // User-facing wellness APIs
+  getDailyAffirmation: () => Promise<DailyAffirmation>;
+  saveMoodCheckIn: (data: { label: string; emoji: string; note?: string }) => Promise<MoodRecord>;
+  getMoodHistory: (opts?: { limit?: number }) => Promise<MoodRecord[]>;
+
+  toggleSavedItem: (data: {
+    kind: "affirmation" | "audio" | "article";
+    refId: string;
+    title: string;
+    category?: string;
+    gradient?: string;
+  }) => Promise<{ saved: boolean; itemId: string }>;
+  getSavedItems: (opts?: { kind?: "affirmation" | "audio" | "article"; limit?: number }) => Promise<SavedItemRecord[]>;
+
+  // Community APIs
+  createCommunityPost: (input: { content: string; category: string; isAnonymous?: boolean }) => Promise<CommunityPostRecord>;
+  listCommunityPosts: (opts?: { category?: string; limit?: number }) => Promise<CommunityPostRecord[]>;
+  likePost: (postId: string) => Promise<{ liked: boolean; likesCount: number }>;
+  addComment: (input: { postId: string; content: string; isAnonymous?: boolean }) => Promise<{ id: string; content: string; createdAt: string; likesCount: number }>;
+  submitReport: (input: { targetType: "post" | "comment" | "user"; targetId: string; reason: string; details?: string }) => Promise<void>;
 }
 
 const STORAGE_KEY = "mindora.auth.user.v1";
@@ -141,6 +189,9 @@ const ADMIN_USERS_KEY = "mindora.admin.users.v1";
 const ADMIN_AFFIRMATIONS_KEY = "mindora.admin.affirmations.v1";
 const ADMIN_AUDIOS_KEY = "mindora.admin.audios.v1";
 const ADMIN_CHALLENGES_KEY = "mindora.admin.challenges.v1";
+const USER_MOODS_KEY_PREFIX = "mindora.user.moods.v1.";
+const USER_SAVED_KEY_PREFIX = "mindora.user.saved.v1.";
+const USER_DAILY_AFF_KEY = "mindora.user.dailyAff.v1";
 
 const ENV_ADMIN_EMAILS: string[] = (() => {
   const list: string[] = ["admin@mindora.app", "super@mindora.app"];
@@ -681,6 +732,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const getAdminStats = React.useCallback(async (): Promise<AdminStats> => {
     ensureSeeds();
+    const result = await callables.adminGetStats();
+    if (result.status === "ok" && result.data) {
+      const {configured} = getFirebase();
+      if (!configured) {
+        safeSet<AffirmationItem[]>(
+          ADMIN_AFFIRMATIONS_KEY,
+          result.data.affirmations.length
+            ? result.data.affirmations
+            : safeGet<AffirmationItem[]>(ADMIN_AFFIRMATIONS_KEY, [])
+        );
+        safeSet<AudioItem[]>(
+          ADMIN_AUDIOS_KEY,
+          result.data.audios.length
+            ? result.data.audios
+            : safeGet<AudioItem[]>(ADMIN_AUDIOS_KEY, [])
+        );
+        safeSet<ChallengeItem[]>(
+          ADMIN_CHALLENGES_KEY,
+          result.data.challenges.length
+            ? result.data.challenges
+            : safeGet<ChallengeItem[]>(ADMIN_CHALLENGES_KEY, [])
+        );
+        safeSet<Omit<MindoraUser, "stats">[]>(
+          ADMIN_USERS_KEY,
+          result.data.recentUsers.length
+            ? result.data.recentUsers
+            : seedRecentUsers()
+        );
+        safeSet<CommunityReport[]>(
+          "mindora.admin.reports.v1",
+          result.data.reports.length ? result.data.reports : SEED_REPORTS
+        );
+      }
+      return result.data;
+    }
     await delay(180);
     return {
       totalUsers: SEED_USERS_COUNT,
@@ -714,16 +800,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const listUsers = React.useCallback(async (): Promise<MindoraUser[]> => {
     ensureSeeds();
+    const result = await callables.adminListUsers({limit: 100});
+    if (result.status === "ok" && result.data) {
+      safeSet<Omit<MindoraUser, "stats">[]>(ADMIN_USERS_KEY, result.data);
+      return result.data.map<MindoraUser>((u) => ({
+        ...u,
+        stats: {...DEFAULT_STATS, currentStreak: 2 + Math.round(Math.random() * 12)},
+      }));
+    }
     await delay(180);
     const recent = safeGet<Omit<MindoraUser, "stats">[]>(ADMIN_USERS_KEY, seedRecentUsers());
     return recent.map<MindoraUser>((u) => ({
       ...u,
-      stats: { ...DEFAULT_STATS, currentStreak: 2 + Math.round(Math.random() * 12) },
+      stats: {...DEFAULT_STATS, currentStreak: 2 + Math.round(Math.random() * 12)},
     }));
   }, [ensureSeeds]);
 
   const deleteUser = React.useCallback(async (userId: string) => {
     ensureSeeds();
+    const result = await callables.adminDeleteUser({userId});
+    if (result.status === "ok") return;
     await delay(200);
     const current = safeGet<Omit<MindoraUser, "stats">[]>(ADMIN_USERS_KEY, seedRecentUsers());
     safeSet(
@@ -734,11 +830,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const updateUserRole = React.useCallback(async (userId: string, role: UserRole) => {
     ensureSeeds();
+    const result = await callables.adminUpdateUserRole({userId, role});
+    if (result.status === "ok") return;
     await delay(200);
     const current = safeGet<Omit<MindoraUser, "stats">[]>(ADMIN_USERS_KEY, seedRecentUsers());
     safeSet(
       ADMIN_USERS_KEY,
-      current.map((u) => (u.id === userId ? { ...u, role } : u))
+      current.map((u) => (u.id === userId ? {...u, role} : u))
     );
   }, [ensureSeeds]);
 
@@ -746,6 +844,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const addAffirmation = React.useCallback(async (data: { text: string; category: string }) => {
     ensureSeeds();
+    const result = await callables.contentAddAffirmation(data);
+    if (result.status === "ok" && result.data) {
+      const list = safeGet<AffirmationItem[]>(ADMIN_AFFIRMATIONS_KEY, []);
+      safeSet(ADMIN_AFFIRMATIONS_KEY, [result.data, ...list]);
+      return result.data;
+    }
     await delay(220);
     const list = safeGet<AffirmationItem[]>(ADMIN_AFFIRMATIONS_KEY, []);
     const item: AffirmationItem = {
@@ -762,6 +866,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const deleteAffirmation = React.useCallback(async (id: string) => {
     ensureSeeds();
+    const result = await callables.contentDeleteAffirmation({id});
+    if (result.status === "ok") {
+      const list = safeGet<AffirmationItem[]>(ADMIN_AFFIRMATIONS_KEY, []);
+      safeSet(ADMIN_AFFIRMATIONS_KEY, list.filter((a) => a.id !== id));
+      return;
+    }
     await delay(180);
     const list = safeGet<AffirmationItem[]>(ADMIN_AFFIRMATIONS_KEY, []);
     safeSet(
@@ -772,6 +882,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const listAffirmations = React.useCallback(async () => {
     ensureSeeds();
+    const result = await callables.contentListAffirmations({limit: 100});
+    if (result.status === "ok" && result.data) {
+      safeSet<AffirmationItem[]>(ADMIN_AFFIRMATIONS_KEY, result.data);
+      return result.data;
+    }
     await delay(150);
     return safeGet<AffirmationItem[]>(ADMIN_AFFIRMATIONS_KEY, []);
   }, [ensureSeeds]);
@@ -779,6 +894,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const uploadAudio = React.useCallback(
     async (data: { title: string; category: string; durationSec?: number; sizeKb?: number; fileName?: string }) => {
       ensureSeeds();
+      const result = await callables.contentUploadAudio({
+        title: data.title || data.fileName || "Untitled",
+        category: data.category,
+        durationSec: data.durationSec ?? 240,
+        sizeKb: data.sizeKb ?? 4200,
+      });
+      if (result.status === "ok" && result.data) {
+        const list = safeGet<AudioItem[]>(ADMIN_AUDIOS_KEY, []);
+        safeSet(ADMIN_AUDIOS_KEY, [result.data, ...list]);
+        return result.data;
+      }
       await delay(260);
       const list = safeGet<AudioItem[]>(ADMIN_AUDIOS_KEY, []);
       const item: AudioItem = {
@@ -799,6 +925,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const deleteAudio = React.useCallback(async (id: string) => {
     ensureSeeds();
+    const result = await callables.contentDeleteAudio({id});
+    if (result.status === "ok") {
+      const list = safeGet<AudioItem[]>(ADMIN_AUDIOS_KEY, []);
+      safeSet(ADMIN_AUDIOS_KEY, list.filter((a) => a.id !== id));
+      return;
+    }
     await delay(180);
     const list = safeGet<AudioItem[]>(ADMIN_AUDIOS_KEY, []);
     safeSet(
@@ -809,12 +941,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const listAudios = React.useCallback(async () => {
     ensureSeeds();
+    const result = await callables.contentListAudios({limit: 100});
+    if (result.status === "ok" && result.data) {
+      safeSet<AudioItem[]>(ADMIN_AUDIOS_KEY, result.data);
+      return result.data;
+    }
     await delay(150);
     return safeGet<AudioItem[]>(ADMIN_AUDIOS_KEY, []);
   }, [ensureSeeds]);
 
   const createChallenge = React.useCallback(async (data: { title: string; days: number }) => {
     ensureSeeds();
+    const result = await callables.contentCreateChallenge(data);
+    if (result.status === "ok" && result.data) {
+      const list = safeGet<ChallengeItem[]>(ADMIN_CHALLENGES_KEY, []);
+      safeSet(ADMIN_CHALLENGES_KEY, [result.data, ...list]);
+      return result.data;
+    }
     await delay(240);
     const list = safeGet<ChallengeItem[]>(ADMIN_CHALLENGES_KEY, []);
     const item: ChallengeItem = {
@@ -831,6 +974,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const listChallenges = React.useCallback(async () => {
     ensureSeeds();
+    const result = await callables.contentListChallenges();
+    if (result.status === "ok" && result.data) {
+      safeSet<ChallengeItem[]>(ADMIN_CHALLENGES_KEY, result.data);
+      return result.data;
+    }
     await delay(150);
     return safeGet<ChallengeItem[]>(ADMIN_CHALLENGES_KEY, []);
   }, [ensureSeeds]);
@@ -838,16 +986,317 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const reviewReport = React.useCallback(
     async (reportId: string, status: CommunityReport["status"]) => {
       ensureSeeds();
+      const result = await callables.adminReviewReport({reportId, status});
+      if (result.status === "ok") {
+        const stats = await getAdminStats();
+        const reports = stats.reports.map((r) =>
+          r.id === reportId ? {...r, status} : r
+        );
+        safeSet("mindora.admin.reports.v1", reports);
+        return;
+      }
       await delay(200);
       const stats = await getAdminStats();
       const reports = stats.reports.map((r) =>
-        r.id === reportId ? { ...r, status } : r
+        r.id === reportId ? {...r, status} : r
       );
-      // We keep reports in-memory via seed, and persist to users key to simulate DB write
       safeSet("mindora.admin.reports.v1", reports);
     },
     [ensureSeeds, getAdminStats]
   );
+
+  /* ---------------- User-facing wellness APIs ---------------- */
+
+  const getDailyAffirmation = React.useCallback(async (): Promise<DailyAffirmation> => {
+    ensureSeeds();
+    const result = await callables.userGetDailyAffirmation();
+    if (result.status === "ok" && result.data) {
+      safeSet<DailyAffirmation>(USER_DAILY_AFF_KEY, result.data);
+      return result.data;
+    }
+    await delay(120);
+    const cache = typeof window !== "undefined" ? localStorage.getItem(USER_DAILY_AFF_KEY) : null;
+    const today = new Date().toISOString().slice(0, 10);
+    if (cache) {
+      try {
+        const parsed = JSON.parse(cache) as DailyAffirmation;
+        if (parsed.date === today && parsed.text) return parsed;
+      } catch { /* ignore */ }
+    }
+    const affirmations = safeGet<AffirmationItem[]>(ADMIN_AFFIRMATIONS_KEY, []);
+    const pool = affirmations.length ? affirmations : [
+      {id: "aff_fallback_1", text: "You are doing better than you think.", category: "Self Love", createdAt: new Date().toISOString(), author: "Mindora"},
+      {id: "aff_fallback_2", text: "Small steps every day create big change.", category: "Motivation", createdAt: new Date().toISOString(), author: "Mindora"},
+      {id: "aff_fallback_3", text: "You deserve rest and peace.", category: "Anxiety Support", createdAt: new Date().toISOString(), author: "Mindora"},
+    ];
+    const idx = Math.abs(
+      Array.from(today).reduce((acc, c) => acc + c.charCodeAt(0), 0) % pool.length
+    );
+    const chosen = pool[idx];
+    const out: DailyAffirmation = {
+      id: chosen.id,
+      text: chosen.text,
+      category: chosen.category,
+      author: chosen.author,
+      date: today,
+    };
+    safeSet<DailyAffirmation>(USER_DAILY_AFF_KEY, out);
+    return out;
+  }, [ensureSeeds]);
+
+  const saveMoodCheckIn = React.useCallback(async (
+    data: { label: string; emoji: string; note?: string }
+  ): Promise<MoodRecord> => {
+    ensureSeeds();
+    const uidKey = user?.id ?? "anon";
+    const result = await callables.userSaveMood(data);
+    if (result.status === "ok" && result.data) {
+      const key = USER_MOODS_KEY_PREFIX + uidKey;
+      const list = safeGet<MoodRecord[]>(key, []);
+      safeSet<MoodRecord[]>(key, [result.data, ...list].slice(0, 120));
+      return result.data;
+    }
+    await delay(160);
+    const key = USER_MOODS_KEY_PREFIX + uidKey;
+    const list = safeGet<MoodRecord[]>(key, []);
+    const item: MoodRecord = {
+      id: uid("mood"),
+      label: data.label,
+      emoji: data.emoji,
+      note: data.note,
+      createdAt: new Date().toISOString(),
+    };
+    safeSet<MoodRecord[]>(key, [item, ...list].slice(0, 120));
+    return item;
+  }, [ensureSeeds, user]);
+
+  const getMoodHistory = React.useCallback(async (
+    opts?: { limit?: number }
+  ): Promise<MoodRecord[]> => {
+    ensureSeeds();
+    const uidKey = user?.id ?? "anon";
+    const result = await callables.userGetMoodHistory({limit: opts?.limit ?? 60});
+    if (result.status === "ok" && result.data) {
+      safeSet<MoodRecord[]>(USER_MOODS_KEY_PREFIX + uidKey, result.data);
+      return result.data;
+    }
+    await delay(140);
+    const key = USER_MOODS_KEY_PREFIX + uidKey;
+    const list = safeGet<MoodRecord[]>(key, []);
+    return list.slice(0, opts?.limit ?? 60);
+  }, [ensureSeeds, user]);
+
+  const toggleSavedItem = React.useCallback(async (data: {
+    kind: "affirmation" | "audio" | "article";
+    refId: string;
+    title: string;
+    category?: string;
+    gradient?: string;
+  }): Promise<{ saved: boolean; itemId: string }> => {
+    ensureSeeds();
+    const uidKey = user?.id ?? "anon";
+    const result = await callables.userToggleSavedItem(data);
+    if (result.status === "ok" && result.data) {
+      const key = USER_SAVED_KEY_PREFIX + uidKey;
+      const list = safeGet<SavedItemRecord[]>(key, []);
+      if (result.data.saved) {
+        const newItem: SavedItemRecord = {
+          id: result.data.itemId,
+          kind: data.kind,
+          refId: data.refId,
+          title: data.title,
+          category: data.category,
+          gradient: data.gradient,
+          createdAt: new Date().toISOString(),
+        };
+        safeSet<SavedItemRecord[]>(key, [newItem, ...list].slice(0, 500));
+      } else {
+        safeSet<SavedItemRecord[]>(
+          key,
+          list.filter((s) => !(s.kind === data.kind && s.refId === data.refId))
+        );
+      }
+      return result.data;
+    }
+    await delay(180);
+    const key = USER_SAVED_KEY_PREFIX + uidKey;
+    const list = safeGet<SavedItemRecord[]>(key, []);
+    const existing = list.find(
+      (s) => s.kind === data.kind && s.refId === data.refId
+    );
+    if (existing) {
+      safeSet<SavedItemRecord[]>(
+        key,
+        list.filter((s) => s.id !== existing.id)
+      );
+      return {saved: false, itemId: existing.id};
+    }
+    const id = uid("svd");
+    const item: SavedItemRecord = {
+      id,
+      kind: data.kind,
+      refId: data.refId,
+      title: data.title,
+      category: data.category,
+      gradient: data.gradient,
+      createdAt: new Date().toISOString(),
+    };
+    safeSet<SavedItemRecord[]>(key, [item, ...list].slice(0, 500));
+    return {saved: true, itemId: id};
+  }, [ensureSeeds, user]);
+
+  const getSavedItems = React.useCallback(async (
+    opts?: { kind?: "affirmation" | "audio" | "article"; limit?: number }
+  ): Promise<SavedItemRecord[]> => {
+    ensureSeeds();
+    const uidKey = user?.id ?? "anon";
+    const result = await callables.userGetSavedItems({
+      kind: opts?.kind,
+      limit: opts?.limit ?? 100,
+    });
+    if (result.status === "ok" && result.data) {
+      const key = USER_SAVED_KEY_PREFIX + uidKey;
+      safeSet<SavedItemRecord[]>(key, result.data);
+      return result.data;
+    }
+    await delay(140);
+    const key = USER_SAVED_KEY_PREFIX + uidKey;
+    const list = safeGet<SavedItemRecord[]>(key, []);
+    const filtered = opts?.kind ? list.filter((s) => s.kind === opts.kind) : list;
+    return filtered.slice(0, opts?.limit ?? 100);
+  }, [ensureSeeds, user]);
+
+  /* ---------------- Community APIs ---------------- */
+
+  const createCommunityPost = React.useCallback(async (
+    input: { content: string; category: string; isAnonymous?: boolean }
+  ): Promise<CommunityPostRecord> => {
+    ensureSeeds();
+    const result = await callables.communityCreatePost(input);
+    if (result.status === "ok" && result.data) {
+      return result.data;
+    }
+    await delay(220);
+    return {
+      id: uid("post"),
+      authorId: user?.id ?? "anon",
+      authorName: input.isAnonymous ? "Anonymous" : user?.fullName ?? "User",
+      isAnonymous: Boolean(input.isAnonymous),
+      category: input.category,
+      content: input.content,
+      createdAt: new Date().toISOString(),
+      likesCount: 0,
+      commentsCount: 0,
+    };
+  }, [ensureSeeds, user]);
+
+  const listCommunityPosts = React.useCallback(async (
+    opts?: { category?: string; limit?: number }
+  ): Promise<CommunityPostRecord[]> => {
+    ensureSeeds();
+    const result = await callables.communityListPosts({
+      category: opts?.category,
+      limit: opts?.limit ?? 20,
+    });
+    if (result.status === "ok" && result.data) {
+      return result.data;
+    }
+    await delay(160);
+    const seed: CommunityPostRecord[] = [
+      {
+        id: "seed_post_1",
+        authorId: "seed_u1",
+        authorName: "Anonymous",
+        isAnonymous: true,
+        category: "Daily Wins",
+        content:
+          "Today I finally did something I've been putting off for months. Small win, but I'm proud of myself. 💜",
+        createdAt: new Date(Date.now() - 2 * 3600 * 1000).toISOString(),
+        likesCount: 128,
+        commentsCount: 24,
+      },
+      {
+        id: "seed_post_2",
+        authorId: "seed_u2",
+        authorName: "Community Friend",
+        isAnonymous: false,
+        category: "Self Love",
+        content:
+          "Day 30 of choosing myself. I'm becoming someone I'm really proud of. ✨",
+        createdAt: new Date(Date.now() - 4 * 3600 * 1000).toISOString(),
+        likesCount: 96,
+        commentsCount: 18,
+      },
+      {
+        id: "seed_post_3",
+        authorId: "seed_u3",
+        authorName: "Anonymous",
+        isAnonymous: true,
+        category: "Anxiety Support",
+        content:
+          "Progress isn't always loud. Sometimes it's just showing up, even when it's hard. 💙",
+        createdAt: new Date(Date.now() - 6 * 3600 * 1000).toISOString(),
+        likesCount: 74,
+        commentsCount: 12,
+      },
+    ];
+    const filtered = opts?.category
+      ? seed.filter((p) => p.category === opts.category)
+      : seed;
+    return filtered.slice(0, opts?.limit ?? 20);
+  }, [ensureSeeds]);
+
+  const likePost = React.useCallback(async (
+    postId: string
+  ): Promise<{ liked: boolean; likesCount: number }> => {
+    ensureSeeds();
+    const result = await callables.communityToggleLike({postId});
+    if (result.status === "ok" && result.data) {
+      return result.data;
+    }
+    await delay(140);
+    return {liked: true, likesCount: 0};
+  }, [ensureSeeds]);
+
+  const addComment = React.useCallback(async (
+    input: { postId: string; content: string; isAnonymous?: boolean }
+  ): Promise<{ id: string; content: string; createdAt: string; likesCount: number }> => {
+    ensureSeeds();
+    const result = await callables.communityAddComment(input);
+    if (result.status === "ok" && result.data) {
+      return result.data;
+    }
+    await delay(180);
+    return {
+      id: uid("cmt"),
+      content: input.content,
+      createdAt: new Date().toISOString(),
+      likesCount: 0,
+    };
+  }, [ensureSeeds]);
+
+  const submitReport = React.useCallback(async (
+    input: { targetType: "post" | "comment" | "user"; targetId: string; reason: string; details?: string }
+  ): Promise<void> => {
+    ensureSeeds();
+    const result = await callables.communityCreateReport(input);
+    if (result.status === "ok") return;
+    await delay(160);
+    // Fallback: append to reports list for admin dashboard to see
+    const current = safeGet<CommunityReport[]>(
+      "mindora.admin.reports.v1",
+      SEED_REPORTS
+    );
+    current.unshift({
+      id: uid("rep"),
+      type: input.targetType === "comment" ? "Comment" : "Post",
+      content: input.reason,
+      reportedBy: user?.fullName ?? "Anonymous",
+      date: new Date().toLocaleString(),
+      status: "Pending",
+    });
+    safeSet("mindora.admin.reports.v1", current);
+  }, [ensureSeeds, user]);
 
   const value: AuthContextValue = {
     user,
@@ -870,6 +1319,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     createChallenge,
     listChallenges,
     reviewReport,
+    getDailyAffirmation,
+    saveMoodCheckIn,
+    getMoodHistory,
+    toggleSavedItem,
+    getSavedItems,
+    createCommunityPost,
+    listCommunityPosts,
+    likePost,
+    addComment,
+    submitReport,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

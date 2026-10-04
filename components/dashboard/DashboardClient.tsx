@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
-import { useAuth, type MindoraUser } from "@/components/auth/AuthContext";
+import { useAuth, type MindoraUser, type CommunityPostRecord, type DailyAffirmation as DailyAffirmationType, type SavedItemRecord } from "@/components/auth/AuthContext";
 import {
   LayoutDashboard,
   UserCircle2,
@@ -136,7 +136,19 @@ function greetingFor(fullName: string) {
 ========================================================= */
 
 export function DashboardClient() {
-  const { user, logout, updateProfile } = useAuth();
+  const {
+    user,
+    logout,
+    updateProfile,
+    saveMoodCheckIn,
+    getMoodHistory,
+    getDailyAffirmation,
+    toggleSavedItem,
+    getSavedItems,
+    listCommunityPosts,
+    likePost,
+    createCommunityPost,
+  } = useAuth();
   const router = useRouter();
 
   const [sidebarOpen, setSidebarOpen] = React.useState(false);
@@ -144,14 +156,34 @@ export function DashboardClient() {
     React.useState<(typeof SAVED_TABS)[number]>("Affirmations");
   const [feedTab, setFeedTab] =
     React.useState<(typeof FEED_TABS)[number]>("Top");
-  const [moodPicked, setMoodPicked] = React.useState<string>("Anxious");
-  const [likedPosts, setLikedPosts] = React.useState<Record<number, boolean>>({});
+  const [moodPicked, setMoodPicked] = React.useState<string | null>(null);
+  const [likedPosts, setLikedPosts] = React.useState<Record<string, boolean>>({});
+  const [postLikeCounts, setPostLikeCounts] = React.useState<Record<string, number>>({});
   const [savedSaved, setSavedSaved] = React.useState<Record<number, boolean>>({});
   const [likedAffirmation, setLikedAffirmation] = React.useState(false);
   const [savedAffirmation, setSavedAffirmation] = React.useState(false);
   const [audioPlaying, setAudioPlaying] = React.useState(true);
   const [audioProgress, setAudioProgress] = React.useState(34);
   const [volume, setVolume] = React.useState(70);
+
+  const [dailyAffirmation, setDailyAffirmation] =
+    React.useState<DailyAffirmationType | null>(null);
+  const [communityPosts, setCommunityPosts] = React.useState<CommunityPostRecord[]>([]);
+  const [savedItems, setSavedItems] = React.useState<SavedItemRecord[]>([]);
+
+  const [newPostOpen, setNewPostOpen] = React.useState(false);
+  const [newPostContent, setNewPostContent] = React.useState("");
+  const [newPostCategory, setNewPostCategory] = React.useState("Daily Wins");
+  const [newPostSubmitting, setNewPostSubmitting] = React.useState(false);
+
+  const POST_CATEGORIES = [
+    "Daily Wins",
+    "Self Love",
+    "Anxiety Support",
+    "Mindfulness",
+    "Gratitude",
+    "General",
+  ] as const;
 
   React.useEffect(() => {
     if (!sidebarOpen) return;
@@ -162,6 +194,69 @@ export function DashboardClient() {
     return () => document.removeEventListener("keydown", onKey);
   }, [sidebarOpen]);
 
+  /* Load initial dynamic data from backend */
+  React.useEffect(() => {
+    if (!user) return;
+    let active = true;
+    (async () => {
+      try {
+        const [aff, posts, saved, moods] = await Promise.all([
+          getDailyAffirmation().catch(() => null),
+          listCommunityPosts({limit: 12}).catch(() => []),
+          getSavedItems({limit: 100}).catch(() => []),
+          getMoodHistory({limit: 1}).catch(() => []),
+        ]);
+        if (!active) return;
+        if (aff) {
+          setDailyAffirmation(aff);
+          const alreadySaved = saved.some(
+            (s) => s.kind === "affirmation" && s.refId === aff.id
+          );
+          setSavedAffirmation(alreadySaved);
+        }
+        if (posts.length) setCommunityPosts(posts);
+        if (saved.length) setSavedItems(saved);
+        if (moods.length && moods[0]) {
+          setMoodPicked(moods[0].label);
+        }
+      } catch {
+        /* ignore */
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [
+    user,
+    getDailyAffirmation,
+    listCommunityPosts,
+    getSavedItems,
+    getMoodHistory,
+  ]);
+
+  /* When saved tab changes, re-filter to ensure fresh data */
+  React.useEffect(() => {
+    if (!user) return;
+    let active = true;
+    (async () => {
+      try {
+        const kind =
+          activeTabSaved === "Affirmations"
+            ? "affirmation"
+            : activeTabSaved === "Audio"
+              ? "audio"
+              : "article";
+        const list = await getSavedItems({kind, limit: 50});
+        if (active) setSavedItems(list);
+      } catch {
+        /* ignore */
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [activeTabSaved, user, getSavedItems]);
+
   const greeting = user ? greetingFor(user.fullName) : greetingFor("Friend");
 
   if (!user) return null;
@@ -169,6 +264,132 @@ export function DashboardClient() {
   const onLogout = async () => {
     await logout();
     router.push("/login");
+  };
+
+  const onMoodPick = async (m: { e: string; label: string }) => {
+    setMoodPicked(m.label);
+    try {
+      await saveMoodCheckIn({label: m.label, emoji: m.e});
+    } catch {
+      /* ignore - state already optimistic */
+    }
+  };
+
+  const onToggleDailyAffirmationSaved = async () => {
+    if (!dailyAffirmation) {
+      setSavedAffirmation((s) => !s);
+      return;
+    }
+    const next = !savedAffirmation;
+    setSavedAffirmation(next);
+    try {
+      await toggleSavedItem({
+        kind: "affirmation",
+        refId: dailyAffirmation.id,
+        title: dailyAffirmation.text.slice(0, 80),
+        category: dailyAffirmation.category,
+        gradient:
+          "linear-gradient(150deg,#C7D2FE 0%,#818CF8 25%,#7C3AED 55%,#24143D 100%)",
+      });
+      /* refresh saved list if in affirmations tab */
+      if (activeTabSaved === "Affirmations") {
+        const list = await getSavedItems({kind: "affirmation", limit: 50});
+        setSavedItems(list);
+      }
+    } catch {
+      setSavedAffirmation((s) => !s); /* revert on failure */
+    }
+  };
+
+  const onToggleSavedItem = async (i: number, kind: "affirmation" | "audio" | "article", refId: string, title: string) => {
+    const currentlySaved = savedSaved[i];
+    setSavedSaved((s) => ({...s, [i]: !s[i]}));
+    try {
+      await toggleSavedItem({
+        kind,
+        refId,
+        title,
+      });
+      const list = await getSavedItems({kind, limit: 50});
+      setSavedItems(list);
+    } catch {
+      setSavedSaved((s) => ({...s, [i]: currentlySaved}));
+    }
+  };
+
+  const onToggleLikePost = async (postId: string, baseLikes: number) => {
+    const wasLiked = !!likedPosts[postId];
+    const nextLiked = !wasLiked;
+    const nextCount = Math.max(0, baseLikes + (nextLiked ? 1 : -1));
+    setLikedPosts((s) => ({...s, [postId]: nextLiked}));
+    setPostLikeCounts((s) => ({...s, [postId]: nextCount}));
+    try {
+      const res = await likePost(postId);
+      setLikedPosts((s) => ({...s, [postId]: res.liked}));
+      setPostLikeCounts((s) => ({...s, [postId]: res.likesCount}));
+    } catch {
+      setLikedPosts((s) => ({...s, [postId]: wasLiked}));
+      setPostLikeCounts((s) => ({...s, [postId]: baseLikes}));
+    }
+  };
+
+  const onCreateNewPost = async () => {
+    if (!newPostContent.trim() || newPostSubmitting) return;
+    setNewPostSubmitting(true);
+    try {
+      const created = await createCommunityPost({
+        category: newPostCategory,
+        content: newPostContent.trim(),
+      });
+      setCommunityPosts((prev) => [created, ...prev]);
+      setNewPostOpen(false);
+      setNewPostContent("");
+      setNewPostCategory("Daily Wins");
+    } catch {
+      /* ignore - UI stays open, user can retry */
+    } finally {
+      setNewPostSubmitting(false);
+    }
+  };
+
+  const categoryColorFor = (cat: string) => {
+    switch (cat) {
+      case "Daily Wins":
+        return "bg-lavender/40 text-primaryPurple border-lavender";
+      case "Self Love":
+        return "bg-pink-100/60 text-pink-600 border-pink-200/60";
+      case "Anxiety Support":
+        return "bg-blue-100/60 text-blue-600 border-blue-200/60";
+      case "Mindfulness":
+        return "bg-emerald-100/60 text-emerald-600 border-emerald-200/60";
+      case "Gratitude":
+        return "bg-amber-100/60 text-amber-600 border-amber-200/60";
+      default:
+        return "bg-softLavender/70 text-brightPurple border-lavender/60";
+    }
+  };
+
+  const formatTimeAgo = (ts: unknown) => {
+    try {
+      const ms =
+        typeof ts === "number"
+          ? ts
+          : typeof ts === "string"
+            ? Date.parse(ts)
+            : ts && typeof ts === "object" && "toDate" in ts
+              ? (ts as { toDate: () => Date }).toDate().getTime()
+              : Date.now() - 2 * 60 * 60 * 1000;
+      const diff = Math.max(0, Date.now() - ms);
+      const m = Math.floor(diff / 60000);
+      if (m < 1) return "just now";
+      if (m < 60) return `${m}m ago`;
+      const h = Math.floor(m / 60);
+      if (h < 24) return `${h}h ago`;
+      const d = Math.floor(h / 24);
+      return `${d}d ago`;
+    } catch {
+      return "2h ago";
+    }
   };
 
   return (
@@ -448,12 +669,12 @@ export function DashboardClient() {
                   </div>
                   <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 md:gap-3">
                     {MOODS.map((m) => {
-                      const picked = moodPicked === m.label;
+                      const picked = moodPicked === m.label || (!moodPicked && !!m.active);
                       return (
                         <button
                           key={m.label}
                           type="button"
-                          onClick={() => setMoodPicked(m.label)}
+                          onClick={() => onMoodPick(m)}
                           className={`group flex flex-col items-center gap-2 rounded-2xl py-3 px-1 border transition-colors ${
                             picked
                               ? "border-brightPurple bg-brightPurple/10 shadow-card"
@@ -561,8 +782,13 @@ export function DashboardClient() {
                       <Quote className="h-7 w-7 text-softGold/80" />
                     </div>
                     <blockquote className="text-2xl md:text-3xl lg:text-[32px] font-semibold tracking-tight leading-tight max-w-md mx-auto">
-                      &ldquo;You are doing better than you think.&rdquo;
+                      &ldquo;{dailyAffirmation?.text ?? "You are doing better than you think."}&rdquo;
                     </blockquote>
+                    {dailyAffirmation?.category ? (
+                      <div className="mt-4 inline-flex items-center rounded-full bg-white/15 border border-white/20 px-3 py-1 text-[11px] backdrop-blur-sm">
+                        {dailyAffirmation.category}
+                      </div>
+                    ) : null}
                   </div>
 
                   <div className="relative flex items-center justify-between mt-2 md:mt-4 gap-3">
@@ -580,7 +806,7 @@ export function DashboardClient() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => setSavedAffirmation((s) => !s)}
+                        onClick={onToggleDailyAffirmationSaved}
                         aria-label="Save affirmation"
                         className={`h-10 w-10 rounded-full border backdrop-blur-sm flex items-center justify-center transition ${
                           savedAffirmation
@@ -958,30 +1184,48 @@ export function DashboardClient() {
                   </div>
 
                   <div className="space-y-3">
-                    {AFFIRMATION_SAVED.map((item, i) => {
-                      const isSaved = savedSaved[i];
+                    {(savedItems.length ? savedItems.slice(0, 6) : AFFIRMATION_SAVED).map((item, i) => {
+                      const kindMap: Record<string, "affirmation" | "audio" | "article"> = {
+                        Affirmations: "affirmation",
+                        Audio: "audio",
+                        Articles: "article",
+                      };
+                      const kind = kindMap[activeTabSaved] ?? "affirmation";
+                      const refId =
+                        "refId" in item ? item.refId : `fallback_${activeTabSaved}_${i}`;
+                      const title = item.title;
+                      const gradient =
+                        "gradient" in item && item.gradient
+                          ? item.gradient
+                          : ("gradient" in item ? (item as { gradient?: string }).gradient : undefined) ||
+                            AFFIRMATION_SAVED[i % AFFIRMATION_SAVED.length].gradient;
+                      const displayKind =
+                        "kind" in item ? item.kind : AFFIRMATION_SAVED[i % AFFIRMATION_SAVED.length].kind;
+                      const isSaved = savedSaved[i] ?? savedItems.length > 0 ? true : undefined;
                       return (
                         <div
-                          key={item.title}
+                          key={`${refId}_${i}`}
                           className="flex items-center gap-3 rounded-2xl bg-softLavender/40 p-2.5 hover:bg-softLavender/70 transition"
                         >
                           <div
                             className="h-14 w-14 rounded-2xl shrink-0 overflow-hidden"
-                            style={{ background: item.gradient }}
+                            style={{ background: gradient }}
                           />
                           <div className="min-w-0 flex-1">
                             <div className="text-[14px] font-semibold text-brandText truncate">
-                              {item.title}
+                              {title}
                             </div>
                             <div className="text-[11px] text-brandSecondaryText">
-                              {item.kind}
+                              {typeof displayKind === "string"
+                                ? displayKind.charAt(0).toUpperCase() + displayKind.slice(1)
+                                : displayKind}
                             </div>
                           </div>
                           <button
                             type="button"
                             aria-label={isSaved ? "Unsave" : "Save"}
                             onClick={() =>
-                              setSavedSaved((s) => ({ ...s, [i]: !s[i] }))
+                              onToggleSavedItem(i, kind, refId, title)
                             }
                             className={`h-8 w-8 rounded-xl flex items-center justify-center transition ${
                               isSaved
@@ -1046,6 +1290,7 @@ export function DashboardClient() {
                       size="sm"
                       variant="primary"
                       rightIcon={<Plus className="h-3.5 w-3.5" />}
+                      onClick={() => setNewPostOpen(true)}
                     >
                       New Post
                     </Button>
@@ -1053,19 +1298,45 @@ export function DashboardClient() {
                 </div>
 
                 <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                  {COMMUNITY_POSTS.map((post, idx) => {
-                    const liked = !!likedPosts[idx];
-                    const likeCount = post.likes + (liked ? 1 : 0);
+                  {(communityPosts.length
+                    ? communityPosts.slice(0, 6)
+                    : (COMMUNITY_POSTS as unknown as CommunityPostRecord[])
+                  ).map((post, idx) => {
+                    const postId = post.id ?? `fallback_${idx}`;
+                    const isBackend = !!post.id;
+                    const category =
+                      isBackend && "category" in post
+                        ? (post as CommunityPostRecord).category
+                        : (post as { category: string }).category;
+                    const categoryColor = isBackend
+                      ? categoryColorFor(category)
+                      : (post as { categoryColor?: string }).categoryColor ??
+                        categoryColorFor(category);
+                    const time = isBackend
+                      ? formatTimeAgo((post as CommunityPostRecord).createdAt)
+                      : (post as { time?: string }).time ?? "2h ago";
+                    const text = isBackend
+                      ? (post as CommunityPostRecord).content
+                      : (post as unknown as { text: string }).text;
+                    const baseLikes = isBackend
+                      ? (post as CommunityPostRecord).likesCount
+                      : (post as unknown as { likes: number }).likes;
+                    const commentsCount = isBackend
+                      ? (post as CommunityPostRecord).commentsCount
+                      : (post as unknown as { comments: number }).comments;
+                    const liked = !!likedPosts[postId];
+                    const likeCount =
+                      postLikeCounts[postId] ?? baseLikes + (liked ? 1 : 0);
                     return (
                       <article
-                        key={idx}
+                        key={postId}
                         className="rounded-2xl bg-softLavender/50 p-4 border border-transparent hover:border-lavender hover:bg-white hover:shadow-soft transition"
                       >
                         <div className="flex items-start justify-between gap-2 mb-3">
                           <span
-                            className={`rounded-full border px-2.5 py-1 text-[10.5px] font-semibold ${post.categoryColor}`}
+                            className={`rounded-full border px-2.5 py-1 text-[10.5px] font-semibold ${categoryColor}`}
                           >
-                            {post.category}
+                            {category}
                           </span>
                           <button
                             type="button"
@@ -1081,25 +1352,28 @@ export function DashboardClient() {
                           </div>
                           <div className="leading-tight">
                             <div className="text-[13px] font-semibold text-brandText">
-                              Anonymous
+                              {(post as { authorName?: string }).authorName ??
+                                "Anonymous"}
                             </div>
                             <div className="text-[11px] text-brandSecondaryText">
-                              {post.time}
+                              {time}
                             </div>
                           </div>
                         </div>
                         <p className="text-[13.5px] text-brandText leading-relaxed mb-4">
-                          {post.text}
+                          {text}
                         </p>
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-3">
                             <button
                               type="button"
                               onClick={() =>
-                                setLikedPosts((s) => ({
-                                  ...s,
-                                  [idx]: !s[idx],
-                                }))
+                                isBackend
+                                  ? onToggleLikePost(postId, baseLikes)
+                                  : setLikedPosts((s) => ({
+                                      ...s,
+                                      [postId]: !s[postId],
+                                    }))
                               }
                               aria-label={liked ? "Unlike post" : "Like post"}
                               className={`inline-flex items-center gap-1.5 text-[12px] font-medium transition ${
@@ -1120,7 +1394,7 @@ export function DashboardClient() {
                               className="inline-flex items-center gap-1.5 text-[12px] font-medium text-brandSecondaryText hover:text-brightPurple transition"
                             >
                               <MessageCircle className="h-4 w-4" />
-                              {post.comments}
+                              {commentsCount}
                             </button>
                             <button
                               type="button"
@@ -1196,6 +1470,104 @@ export function DashboardClient() {
           </div>
         </div>
       </div>
+
+      {/* New Post Modal */}
+      {newPostOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-deepPurple/40 backdrop-blur-sm">
+          <div className="w-full max-w-lg rounded-3xl bg-white border border-lavender/50 shadow-2xl p-6">
+            <div className="flex items-start justify-between mb-5">
+              <div>
+                <h3 className="text-lg font-semibold text-brandText">
+                  Create a Post
+                </h3>
+                <p className="text-[12px] text-brandSecondaryText mt-0.5">
+                  Share your journey with the community.
+                </p>
+              </div>
+              <button
+                type="button"
+                aria-label="Close"
+                onClick={() => {
+                  if (newPostSubmitting) return;
+                  setNewPostOpen(false);
+                  setNewPostContent("");
+                  setNewPostCategory("Daily Wins");
+                }}
+                className="h-8 w-8 rounded-xl flex items-center justify-center text-brandSecondaryText hover:text-brandText hover:bg-softLavender"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-[12px] font-semibold text-brandText mb-1.5">
+                  Category
+                </label>
+                <div className="flex flex-wrap gap-1.5">
+                  {POST_CATEGORIES.map((c) => {
+                    const active = newPostCategory === c;
+                    return (
+                      <button
+                        key={c}
+                        type="button"
+                        onClick={() => setNewPostCategory(c)}
+                        className={`rounded-full border px-3 py-1.5 text-[11px] font-semibold transition ${
+                          active
+                            ? categoryColorFor(c)
+                            : "border-lavender/50 text-brandSecondaryText hover:text-brandText hover:bg-softLavender/50"
+                        }`}
+                      >
+                        {c}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[12px] font-semibold text-brandText mb-1.5">
+                  What&apos;s on your mind?
+                </label>
+                <textarea
+                  value={newPostContent}
+                  onChange={(e) => setNewPostContent(e.target.value)}
+                  placeholder="Share a small win, something you're grateful for, or something that's been on your heart..."
+                  rows={5}
+                  className="w-full resize-none rounded-2xl border border-lavender/50 bg-softLavender/30 px-4 py-3 text-[13.5px] text-brandText placeholder:text-brandSecondaryText/70 focus:outline-none focus:ring-2 focus:ring-brightPurple/40 focus:border-brightPurple/40 transition"
+                />
+                <div className="mt-1.5 text-right text-[11px] text-brandSecondaryText">
+                  {newPostContent.length}/500
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-5 flex items-center justify-end gap-3">
+              <Button
+                size="md"
+                variant="ghost"
+                onClick={() => {
+                  if (newPostSubmitting) return;
+                  setNewPostOpen(false);
+                  setNewPostContent("");
+                  setNewPostCategory("Daily Wins");
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                size="md"
+                variant="primary"
+                rightIcon={<Plus className="h-4 w-4" />}
+                onClick={onCreateNewPost}
+                disabled={!newPostContent.trim() || newPostSubmitting}
+              >
+                {newPostSubmitting ? "Posting..." : "Share Post"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
