@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { useAuth, type MindoraUser, type CommunityPostRecord, type DailyAffirmation as DailyAffirmationType, type SavedItemRecord } from "@/components/auth/AuthContext";
 import {
@@ -71,54 +71,30 @@ const AUDIO_ICONS = [
 
 const SAVED_TABS = ["Affirmations", "Audio", "Articles"] as const;
 
-const AFFIRMATION_SAVED = [
-  {
-    title: "You are stronger than you think.",
-    kind: "Affirmation",
-    gradient:
-      "linear-gradient(135deg,#E9D5FF 0%,#C9B8F3 40%,#6D3FE8 100%)",
-  },
-  {
-    title: "Better Days Ahead",
-    kind: "Affirmation",
-    gradient:
-      "linear-gradient(135deg,#FDE68A 0%,#F9A8D4 45%,#8B5CF6 100%)",
-  },
-  {
-    title: "Peace begins within.",
-    kind: "Affirmation",
-    gradient:
-      "linear-gradient(135deg,#C7D2FE 0%,#A7F3D0 55%,#818CF8 100%)",
-  },
-];
-
 const FEED_TABS = ["Top", "Recent", "Following"] as const;
 
-const COMMUNITY_POSTS = [
-  {
-    category: "Daily Wins",
-    categoryColor: "bg-lavender/40 text-primaryPurple border-lavender",
-    time: "2h ago",
-    text: "Today I finally did something I've been putting off for months. Small win, but I'm proud of myself. 💜",
-    likes: 128,
-    comments: 24,
-  },
-  {
-    category: "Self Love",
-    categoryColor: "bg-pink-100/60 text-pink-600 border-pink-200/60",
-    time: "4h ago",
-    text: "Day 30 of choosing myself. I'm becoming someone I'm really proud of. ✨",
-    likes: 96,
-    comments: 18,
-  },
-  {
-    category: "Anxiety Support",
-    categoryColor: "bg-blue-100/60 text-blue-600 border-blue-200/60",
-    time: "6h ago",
-    text: "Progress isn't always loud. Sometimes it's just showing up, even when it's hard. 💙",
-    likes: 74,
-    comments: 12,
-  },
+type SearchResult = {
+  id: string;
+  label: string;
+  sub: string;
+  href: string;
+};
+
+const SEARCH_INDEX: SearchResult[] = [
+  { id: "dashboard", label: "Dashboard", sub: "Page", href: "/dashboard" },
+  { id: "profile", label: "My Profile", sub: "Page", href: "/profile" },
+  { id: "saved", label: "Saved Content", sub: "Page", href: "/saved" },
+  { id: "mood-history", label: "Mood History", sub: "Page", href: "/mood-history" },
+  { id: "community", label: "Community", sub: "Page", href: "/community" },
+  { id: "premium", label: "Premium", sub: "Page", href: "/premium" },
+  { id: "settings", label: "Settings", sub: "Page", href: "/settings" },
+  { id: "features", label: "Features", sub: "Page", href: "/features" },
+  { id: "how-it-works", label: "How It Works", sub: "Page", href: "/how-it-works" },
+  { id: "about", label: "About", sub: "Page", href: "/about" },
+  { id: "blog", label: "Blog", sub: "Page", href: "/blog" },
+  { id: "careers", label: "Careers", sub: "Page", href: "/careers" },
+  { id: "contact", label: "Contact", sub: "Page", href: "/contact" },
+  { id: "help-center", label: "Help Center", sub: "Page", href: "/help-center" },
 ];
 
 /* ------------- Greeting helper ------------- */
@@ -152,6 +128,8 @@ export function DashboardClient() {
   const router = useRouter();
 
   const [sidebarOpen, setSidebarOpen] = React.useState(false);
+  const [searchQuery, setSearchQuery] = React.useState("");
+  const [searchFocused, setSearchFocused] = React.useState(false);
   const [activeTabSaved, setActiveTabSaved] =
     React.useState<(typeof SAVED_TABS)[number]>("Affirmations");
   const [feedTab, setFeedTab] =
@@ -257,6 +235,35 @@ export function DashboardClient() {
     };
   }, [activeTabSaved, user, getSavedItems]);
 
+  const pathname = usePathname();
+
+  const searchResults = React.useMemo<SearchResult[]>(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return [];
+    const pages = SEARCH_INDEX.filter((item) =>
+      `${item.label} ${item.sub}`.toLowerCase().includes(q)
+    );
+    const saved = savedItems
+      .filter((item) => (item.title ?? "").toLowerCase().includes(q))
+      .slice(0, 4)
+      .map((item) => ({
+        id: `saved-${item.id}`,
+        label: item.title,
+        sub: "Saved content",
+        href: "/saved",
+      }));
+    const posts = communityPosts
+      .filter((post) => (post.content ?? "").toLowerCase().includes(q))
+      .slice(0, 4)
+      .map((post) => ({
+        id: `post-${post.id}`,
+        label: post.content.slice(0, 56),
+        sub: "Community post",
+        href: "/community",
+      }));
+    return [...pages, ...saved, ...posts].slice(0, 8);
+  }, [searchQuery, savedItems, communityPosts]);
+
   const greeting = user ? greetingFor(user.fullName) : greetingFor("Friend");
 
   if (!user) return null;
@@ -352,6 +359,22 @@ export function DashboardClient() {
     }
   };
 
+  const onSharePost = async (postId: string, content: string) => {
+    if (typeof window === "undefined") return;
+    const shareUrl = `${window.location.origin}/community#${postId}`;
+    try {
+      if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
+        await navigator.share({ title: "Mindora Community", text: content, url: shareUrl });
+        return;
+      }
+      if (typeof navigator !== "undefined" && navigator.clipboard) {
+        await navigator.clipboard.writeText(shareUrl);
+      }
+    } catch {
+      /* the user dismissed the share sheet */
+    }
+  };
+
   const categoryColorFor = (cat: string) => {
     switch (cat) {
       case "Daily Wins":
@@ -437,7 +460,7 @@ export function DashboardClient() {
 
         <nav className="flex-1 px-4 py-5 space-y-1 overflow-y-auto">
           {SIDEBAR_ITEMS.map(({ href, label, icon: Icon }) => {
-            const active = href === "/dashboard";
+            const active = pathname === href;
             return (
               <Link
                 key={href}
@@ -519,11 +542,13 @@ export function DashboardClient() {
               </span>
               <input
                 type="search"
-                disabled
-                aria-disabled="true"
-                title="Search is coming soon"
-                placeholder="Search Mindora (coming soon)"
-                className="block w-full h-11 rounded-2xl border border-lavender/50 bg-white pl-11 pr-11 text-sm text-brandText placeholder:text-brandSecondaryText/50 disabled:opacity-80 disabled:cursor-not-allowed focus:outline-none"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onFocus={() => setSearchFocused(true)}
+                onBlur={() => window.setTimeout(() => setSearchFocused(false), 150)}
+                aria-label="Search Mindora"
+                placeholder="Search Mindora"
+                className="block w-full h-11 rounded-2xl border border-lavender/50 bg-white pl-11 pr-11 text-sm text-brandText placeholder:text-brandSecondaryText/50 focus:border-brightPurple focus:outline-none focus:ring-2 focus:ring-brightPurple/20 transition-all"
               />
               <span
                 aria-hidden
@@ -531,6 +556,44 @@ export function DashboardClient() {
               >
                 <Search className="h-4 w-4" />
               </span>
+              {searchFocused && searchQuery.trim() !== "" && (
+                <div className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-30 rounded-2xl border border-lavender/60 bg-white shadow-card overflow-hidden">
+                  {searchResults.length === 0 ? (
+                    <p className="px-4 py-3 text-sm text-brandSecondaryText">
+                      No results for &ldquo;{searchQuery.trim()}&rdquo;.
+                    </p>
+                  ) : (
+                    <ul className="max-h-80 overflow-y-auto py-1">
+                      {searchResults.map((r) => (
+                        <li key={r.id}>
+                          <button
+                            type="button"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => {
+                              setSearchQuery("");
+                              setSearchFocused(false);
+                              router.push(r.href);
+                            }}
+                            className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-softLavender/70 transition"
+                          >
+                            <span className="h-8 w-8 rounded-xl bg-softLavender text-brightPurple flex items-center justify-center shrink-0">
+                              <Search className="h-4 w-4" />
+                            </span>
+                            <span className="min-w-0">
+                              <span className="block text-[13px] font-semibold text-brandText truncate">
+                                {r.label}
+                              </span>
+                              <span className="block text-[11px] text-brandSecondaryText">
+                                {r.sub}
+                              </span>
+                            </span>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
             </div>
 
             <button
@@ -1184,63 +1247,67 @@ export function DashboardClient() {
                   </div>
 
                   <div className="space-y-3">
-                    {(savedItems.length ? savedItems.slice(0, 6) : AFFIRMATION_SAVED).map((item, i) => {
-                      const kindMap: Record<string, "affirmation" | "audio" | "article"> = {
-                        Affirmations: "affirmation",
-                        Audio: "audio",
-                        Articles: "article",
-                      };
-                      const kind = kindMap[activeTabSaved] ?? "affirmation";
-                      const refId =
-                        "refId" in item ? item.refId : `fallback_${activeTabSaved}_${i}`;
-                      const title = item.title;
-                      const gradient =
-                        "gradient" in item && item.gradient
-                          ? item.gradient
-                          : ("gradient" in item ? (item as { gradient?: string }).gradient : undefined) ||
-                            AFFIRMATION_SAVED[i % AFFIRMATION_SAVED.length].gradient;
-                      const displayKind =
-                        "kind" in item ? item.kind : AFFIRMATION_SAVED[i % AFFIRMATION_SAVED.length].kind;
-                      const isSaved = savedSaved[i] ?? savedItems.length > 0 ? true : undefined;
-                      return (
-                        <div
-                          key={`${refId}_${i}`}
-                          className="flex items-center gap-3 rounded-2xl bg-softLavender/40 p-2.5 hover:bg-softLavender/70 transition"
-                        >
+                    {savedItems.length === 0 ? (
+                      <div className="rounded-2xl bg-softLavender/40 p-6 text-center">
+                        <p className="text-[13px] font-semibold text-brandText">
+                          Nothing saved here yet.
+                        </p>
+                        <p className="mt-1 text-[12px] text-brandSecondaryText">
+                          Tap the bookmark on an affirmation, audio track, or
+                          article to keep it here.
+                        </p>
+                      </div>
+                    ) : (
+                      savedItems.slice(0, 6).map((item, i) => {
+                        const isSaved = savedSaved[i] ?? true;
+                        return (
                           <div
-                            className="h-14 w-14 rounded-2xl shrink-0 overflow-hidden"
-                            style={{ background: gradient }}
-                          />
-                          <div className="min-w-0 flex-1">
-                            <div className="text-[14px] font-semibold text-brandText truncate">
-                              {title}
-                            </div>
-                            <div className="text-[11px] text-brandSecondaryText">
-                              {typeof displayKind === "string"
-                                ? displayKind.charAt(0).toUpperCase() + displayKind.slice(1)
-                                : displayKind}
-                            </div>
-                          </div>
-                          <button
-                            type="button"
-                            aria-label={isSaved ? "Unsave" : "Save"}
-                            onClick={() =>
-                              onToggleSavedItem(i, kind, refId, title)
-                            }
-                            className={`h-8 w-8 rounded-xl flex items-center justify-center transition ${
-                              isSaved
-                                ? "text-brightPurple bg-white"
-                                : "text-brandSecondaryText hover:text-brightPurple hover:bg-white/80"
-                            }`}
+                            key={`${item.id}_${i}`}
+                            className="flex items-center gap-3 rounded-2xl bg-softLavender/40 p-2.5 hover:bg-softLavender/70 transition"
                           >
-                            <BookmarkCheck
-                              className="h-4 w-4"
-                              fill={isSaved ? "currentColor" : "none"}
+                            <div
+                              className="h-14 w-14 rounded-2xl shrink-0 overflow-hidden"
+                              style={{
+                                background:
+                                  item.gradient ??
+                                  "linear-gradient(135deg,#E9D5FF 0%,#6D3FE8 100%)",
+                              }}
                             />
-                          </button>
-                        </div>
-                      );
-                    })}
+                            <div className="min-w-0 flex-1">
+                              <div className="text-[14px] font-semibold text-brandText truncate">
+                                {item.title}
+                              </div>
+                              <div className="text-[11px] text-brandSecondaryText">
+                                {item.kind.charAt(0).toUpperCase() +
+                                  item.kind.slice(1)}
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              aria-label={isSaved ? "Unsave" : "Save"}
+                              onClick={() =>
+                                onToggleSavedItem(
+                                  i,
+                                  item.kind,
+                                  item.refId,
+                                  item.title
+                                )
+                              }
+                              className={`h-8 w-8 rounded-xl flex items-center justify-center transition ${
+                                isSaved
+                                  ? "text-brightPurple bg-white"
+                                  : "text-brandSecondaryText hover:text-brightPurple hover:bg-white/80"
+                              }`}
+                            >
+                              <BookmarkCheck
+                                className="h-4 w-4"
+                                fill={isSaved ? "currentColor" : "none"}
+                              />
+                            </button>
+                          </div>
+                        );
+                      })
+                    )}
                   </div>
                 </section>
               </div>
@@ -1298,116 +1365,88 @@ export function DashboardClient() {
                 </div>
 
                 <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                  {(communityPosts.length
-                    ? communityPosts.slice(0, 6)
-                    : (COMMUNITY_POSTS as unknown as CommunityPostRecord[])
-                  ).map((post, idx) => {
-                    const postId = post.id ?? `fallback_${idx}`;
-                    const isBackend = !!post.id;
-                    const category =
-                      isBackend && "category" in post
-                        ? (post as CommunityPostRecord).category
-                        : (post as { category: string }).category;
-                    const categoryColor = isBackend
-                      ? categoryColorFor(category)
-                      : (post as { categoryColor?: string }).categoryColor ??
-                        categoryColorFor(category);
-                    const time = isBackend
-                      ? formatTimeAgo((post as CommunityPostRecord).createdAt)
-                      : (post as { time?: string }).time ?? "2h ago";
-                    const text = isBackend
-                      ? (post as CommunityPostRecord).content
-                      : (post as unknown as { text: string }).text;
-                    const baseLikes = isBackend
-                      ? (post as CommunityPostRecord).likesCount
-                      : (post as unknown as { likes: number }).likes;
-                    const commentsCount = isBackend
-                      ? (post as CommunityPostRecord).commentsCount
-                      : (post as unknown as { comments: number }).comments;
-                    const liked = !!likedPosts[postId];
-                    const likeCount =
-                      postLikeCounts[postId] ?? baseLikes + (liked ? 1 : 0);
-                    return (
-                      <article
-                        key={postId}
-                        className="rounded-2xl bg-softLavender/50 p-4 border border-transparent hover:border-lavender hover:bg-white hover:shadow-soft transition"
-                      >
-                        <div className="flex items-start justify-between gap-2 mb-3">
-                          <span
-                            className={`rounded-full border px-2.5 py-1 text-[10.5px] font-semibold ${categoryColor}`}
-                          >
-                            {category}
-                          </span>
-                          <button
-                            type="button"
-                            aria-label="More options"
-                            className="h-7 w-7 rounded-full hover:bg-white flex items-center justify-center text-brandSecondaryText"
-                          >
-                            <MoreHorizontal className="h-4 w-4" />
-                          </button>
-                        </div>
-                        <div className="flex items-center gap-2.5 mb-3">
-                          <div className="h-8 w-8 rounded-full bg-lavender flex items-center justify-center">
-                            <UserCircle2 className="h-5 w-5 text-brightPurple/80" />
+                  {communityPosts.length === 0 ? (
+                    <div className="md:col-span-2 xl:col-span-3 rounded-2xl bg-softLavender/50 p-8 text-center">
+                      <p className="text-[13.5px] font-semibold text-brandText">
+                        No community posts yet.
+                      </p>
+                      <p className="mt-1 text-[12.5px] text-brandSecondaryText">
+                        Be the first to share something kind — tap &ldquo;New
+                        Post&rdquo; to start the conversation.
+                      </p>
+                    </div>
+                  ) : (
+                    communityPosts.slice(0, 6).map((post) => {
+                      const liked = !!likedPosts[post.id];
+                      const likeCount =
+                        postLikeCounts[post.id] ??
+                        post.likesCount + (liked ? 1 : 0);
+                      return (
+                        <article
+                          key={post.id}
+                          className="rounded-2xl bg-softLavender/50 p-4 border border-transparent hover:border-lavender hover:bg-white hover:shadow-soft transition"
+                        >
+                          <div className="flex items-start justify-between gap-2 mb-3">
+                            <span
+                              className={`rounded-full border px-2.5 py-1 text-[10.5px] font-semibold ${categoryColorFor(post.category)}`}
+                            >
+                              {post.category}
+                            </span>
                           </div>
-                          <div className="leading-tight">
-                            <div className="text-[13px] font-semibold text-brandText">
-                              {(post as { authorName?: string }).authorName ??
-                                "Anonymous"}
+                          <div className="flex items-center gap-2.5 mb-3">
+                            <div className="h-8 w-8 rounded-full bg-lavender flex items-center justify-center">
+                              <UserCircle2 className="h-5 w-5 text-brightPurple/80" />
                             </div>
-                            <div className="text-[11px] text-brandSecondaryText">
-                              {time}
+                            <div className="leading-tight">
+                              <div className="text-[13px] font-semibold text-brandText">
+                                {post.authorName ?? "Anonymous"}
+                              </div>
+                              <div className="text-[11px] text-brandSecondaryText">
+                                {formatTimeAgo(post.createdAt)}
+                              </div>
                             </div>
                           </div>
-                        </div>
-                        <p className="text-[13.5px] text-brandText leading-relaxed mb-4">
-                          {text}
-                        </p>
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <button
-                              type="button"
-                              onClick={() =>
-                                isBackend
-                                  ? onToggleLikePost(postId, baseLikes)
-                                  : setLikedPosts((s) => ({
-                                      ...s,
-                                      [postId]: !s[postId],
-                                    }))
-                              }
-                              aria-label={liked ? "Unlike post" : "Like post"}
-                              className={`inline-flex items-center gap-1.5 text-[12px] font-medium transition ${
-                                liked
-                                  ? "text-pink-500"
-                                  : "text-brandSecondaryText hover:text-pink-500"
-                              }`}
-                            >
-                              <Heart
-                                className="h-4 w-4"
-                                fill={liked ? "currentColor" : "none"}
-                              />
-                              {likeCount}
-                            </button>
-                            <button
-                              type="button"
-                              aria-label="Comment"
-                              className="inline-flex items-center gap-1.5 text-[12px] font-medium text-brandSecondaryText hover:text-brightPurple transition"
-                            >
-                              <MessageCircle className="h-4 w-4" />
-                              {commentsCount}
-                            </button>
-                            <button
-                              type="button"
-                              aria-label="Share"
-                              className="inline-flex items-center gap-1.5 text-[12px] font-medium text-brandSecondaryText hover:text-brightPurple transition"
-                            >
-                              <Share className="h-4 w-4" />
-                            </button>
+                          <p className="text-[13.5px] text-brandText leading-relaxed mb-4">
+                            {post.content}
+                          </p>
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  onToggleLikePost(post.id, post.likesCount)
+                                }
+                                aria-label={liked ? "Unlike post" : "Like post"}
+                                className={`inline-flex items-center gap-1.5 text-[12px] font-medium transition ${
+                                  liked
+                                    ? "text-pink-500"
+                                    : "text-brandSecondaryText hover:text-pink-500"
+                                }`}
+                              >
+                                <Heart
+                                  className="h-4 w-4"
+                                  fill={liked ? "currentColor" : "none"}
+                                />
+                                {likeCount}
+                              </button>
+                              <span className="inline-flex items-center gap-1.5 text-[12px] font-medium text-brandSecondaryText">
+                                <MessageCircle className="h-4 w-4" />
+                                {post.commentsCount}
+                              </span>
+                              <button
+                                type="button"
+                                aria-label="Share post"
+                                onClick={() => onSharePost(post.id, post.content)}
+                                className="inline-flex items-center gap-1.5 text-[12px] font-medium text-brandSecondaryText hover:text-brightPurple transition"
+                              >
+                                <Share className="h-4 w-4" />
+                              </button>
+                            </div>
                           </div>
-                        </div>
-                      </article>
-                    );
-                  })}
+                        </article>
+                      );
+                    })
+                  )}
                 </div>
               </section>
 

@@ -11,6 +11,13 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { route: "/community", freq: "monthly" as const, priority: 0.7 },
     { route: "/premium", freq: "monthly" as const, priority: 0.7 },
     { route: "/about", freq: "monthly" as const, priority: 0.7 },
+    { route: "/blog", freq: "weekly" as const, priority: 0.6 },
+    { route: "/careers", freq: "monthly" as const, priority: 0.6 },
+    { route: "/contact", freq: "monthly" as const, priority: 0.6 },
+    { route: "/help-center", freq: "monthly" as const, priority: 0.5 },
+    { route: "/privacy-policy", freq: "yearly" as const, priority: 0.4 },
+    { route: "/terms-of-service", freq: "yearly" as const, priority: 0.4 },
+    { route: "/community-guidelines", freq: "yearly" as const, priority: 0.4 },
     { route: "/login", freq: "monthly" as const, priority: 0.7 },
     { route: "/signup", freq: "monthly" as const, priority: 0.7 },
   ];

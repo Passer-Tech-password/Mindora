@@ -4,11 +4,16 @@ import {
   connectAuthEmulator,
   createUserWithEmailAndPassword,
   getAuth,
+  GoogleAuthProvider,
   inMemoryPersistence,
   initializeAuth,
+  onAuthStateChanged,
+  sendPasswordResetEmail,
   setPersistence,
   signInWithEmailAndPassword,
+  signInWithPopup,
   signOut as fbSignOut,
+  updateProfile,
   type Auth,
   type User,
   type UserCredential,
@@ -142,6 +147,16 @@ export async function firebaseSignUp(email: string, password: string): Promise<U
   return credential.user;
 }
 
+export async function firebaseSignInWithGoogle(): Promise<User | null> {
+  const { auth, configured } = getFirebase();
+  if (!configured || !auth || typeof window === "undefined") {
+    throw new Error("Google sign-in is not available right now.");
+  }
+  const provider = new GoogleAuthProvider();
+  const credential: UserCredential = await signInWithPopup(auth, provider);
+  return credential.user;
+}
+
 export async function firebaseSignOut(): Promise<void> {
   const { auth, configured } = getFirebase();
   if (!configured || !auth || typeof window === "undefined") return;
@@ -149,5 +164,45 @@ export async function firebaseSignOut(): Promise<void> {
     await fbSignOut(auth);
   } catch {
     /* ignore */
+  }
+}
+
+export async function firebaseUpdateDisplayName(name: string): Promise<void> {
+  const { auth, configured } = getFirebase();
+  if (!configured || !auth || typeof window === "undefined") return;
+  const current = auth.currentUser;
+  if (!current) return;
+  await updateProfile(current, { displayName: name });
+}
+
+export async function firebaseSendPasswordReset(email: string): Promise<void> {
+  const { auth, configured } = getFirebase();
+  if (!configured || !auth || typeof window === "undefined") {
+    throw new Error("Password reset is not available right now.");
+  }
+  await sendPasswordResetEmail(auth, email);
+}
+
+export function isEmailPasswordSignInAvailable(): boolean {
+  const { auth, configured } = getFirebase();
+  return configured && !!auth && typeof window !== "undefined";
+}
+
+/**
+ * Subscribe to Firebase Auth state changes. Returns an unsubscribe function.
+ * When Firebase is not configured the listener is never invoked and the
+ * returned function is a no-op, so callers must handle the unconfigured case.
+ */
+export function subscribeToAuthState(
+  onChange: (user: User | null) => void
+): () => void {
+  const { auth, configured } = getFirebase();
+  if (!configured || !auth || typeof window === "undefined") {
+    return () => {};
+  }
+  try {
+    return onAuthStateChanged(auth, onChange);
+  } catch {
+    return () => {};
   }
 }

@@ -55,6 +55,11 @@ const COLLECTIONS = {
   savedItems: "savedItems",
   notifications: "notifications",
   subscriptions: "subscriptions",
+  newsletterSubscribers: "newsletterSubscribers",
+  contactMessages: "contactMessages",
+  blogPosts: "blogPosts",
+  jobOpenings: "jobOpenings",
+  userSettings: "userSettings",
 } as const;
 
 /* -------------------------- Admin whitelist -------------------------- */
@@ -198,6 +203,7 @@ export const adminGetStats = onCall<Record<string, unknown>, Promise<AdminStatsR
       affSnap,
       audioSnap,
       chalSnap,
+      subSnap,
     ] = await Promise.all([
       db.collection(COLLECTIONS.users).limit(2000).get(),
       db.collection(COLLECTIONS.posts).limit(5000).get(),
@@ -206,6 +212,7 @@ export const adminGetStats = onCall<Record<string, unknown>, Promise<AdminStatsR
       db.collection(COLLECTIONS.affirmations).orderBy("createdAt", "desc").limit(50).get(),
       db.collection(COLLECTIONS.audios).orderBy("createdAt", "desc").limit(50).get(),
       db.collection(COLLECTIONS.challenges).limit(50).get(),
+      db.collection(COLLECTIONS.subscriptions).limit(5000).get(),
     ]);
 
     const users = userSnap.docs.map((d) => ({id: d.id, ...d.data()}));
@@ -228,7 +235,7 @@ export const adminGetStats = onCall<Record<string, unknown>, Promise<AdminStatsR
     let acc = 0;
     for (const v of usersGrowthLast30D) {
       acc += v;
-      growthCumulative.push(Math.max(200, Math.round(acc * 42)));
+      growthCumulative.push(acc);
     }
 
     const categoryCount = new Map<string, number>();
@@ -236,98 +243,28 @@ export const adminGetStats = onCall<Record<string, unknown>, Promise<AdminStatsR
       const c = String((p as {category?: string}).category ?? "General");
       categoryCount.set(c, (categoryCount.get(c) ?? 0) + 1);
     }
-    const totalPostsCount = posts.length || 1;
-    const categoryEntries: [string, number][] = Array.from(categoryCount.entries()).length
-      ? Array.from(categoryCount.entries()) as [string, number][]
-      : [
-          ["Daily Wins", 12],
-          ["Mental Health", 9],
-          ["Self Love", 7],
-          ["Anxiety Support", 5],
-          ["Motivation", 4],
-          ["Gratitude", 3],
-        ];
+    const totalPostsCount = posts.length;
+    const categoryEntries: [string, number][] = Array.from(categoryCount.entries());
     const contentDistribution = categoryEntries.map(([label, count]) => ({
       label: String(label),
-      percent: Math.max(1, Math.round((Number(count) / (totalPostsCount || 35)) * 100)),
+      percent: totalPostsCount
+        ? Math.max(1, Math.round((Number(count) / totalPostsCount) * 100))
+        : 0,
       color: CATEGORY_COLORS[label] ?? "#6D3FE8",
     }));
 
-    const topTopics: { label: string; posts: number; growth: number; color: string }[] = Array.from(categoryCount.entries()).length
-      ? (Array.from(categoryCount.entries()) as [string, number][])
-          .sort((a, b) => b[1] - a[1])
-          .slice(0, 5)
-          .map(([label, count]) => ({
-            label: String(label),
-            posts: Number(count),
-            growth: 8 + Math.round(Math.random() * 20),
-            color: CATEGORY_COLORS[label] ?? "#6D3FE8",
-          }))
-      : [
-          {label: "Self Love", posts: 892, growth: 24, color: "#FCE7F3"},
-          {label: "Mental Health", posts: 764, growth: 18, color: "#EDE9FE"},
-          {label: "Motivation", posts: 632, growth: 15, color: "#FFEDD5"},
-          {label: "Anxiety Support", posts: 521, growth: 12, color: "#DBEAFE"},
-          {label: "Gratitude", posts: 438, growth: 10, color: "#D1FAE5"},
-        ];
+    const topTopics: { label: string; posts: number; growth: number; color: string }[] =
+      (categoryEntries as [string, number][])
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5)
+        .map(([label, count]) => ({
+          label: String(label),
+          posts: Number(count),
+          growth: 0,
+          color: CATEGORY_COLORS[label] ?? "#6D3FE8",
+        }));
 
-    const recentUsers = (users.slice(0, 5).length ? users.slice(0, 5) : [
-      {
-        id: "usr_demo1",
-        firstName: "Sarah",
-        lastName: "Johnson",
-        fullName: "Sarah Johnson",
-        email: "sarah@example.com",
-        role: "user",
-        plan: "premium",
-        avatar: "",
-        createdAt: new Date(now - 2 * 3600 * 1000).toISOString(),
-      },
-      {
-        id: "usr_demo2",
-        firstName: "Michael",
-        lastName: "Brown",
-        fullName: "Michael Brown",
-        email: "michael@example.com",
-        role: "user",
-        plan: "free",
-        avatar: "",
-        createdAt: new Date(now - 4 * 3600 * 1000).toISOString(),
-      },
-      {
-        id: "usr_demo3",
-        firstName: "Emily",
-        lastName: "Davis",
-        fullName: "Emily Davis",
-        email: "emily@example.com",
-        role: "user",
-        plan: "free",
-        avatar: "",
-        createdAt: new Date(now - 6 * 3600 * 1000).toISOString(),
-      },
-      {
-        id: "usr_demo4",
-        firstName: "James",
-        lastName: "Wilson",
-        fullName: "James Wilson",
-        email: "james@example.com",
-        role: "user",
-        plan: "free",
-        avatar: "",
-        createdAt: new Date(now - 8 * 3600 * 1000).toISOString(),
-      },
-      {
-        id: "usr_demo5",
-        firstName: "Olivia",
-        lastName: "Martinez",
-        fullName: "Olivia Martinez",
-        email: "olivia@example.com",
-        role: "user",
-        plan: "premium",
-        avatar: "",
-        createdAt: new Date(now - 10 * 3600 * 1000).toISOString(),
-      },
-    ]).map((u) => {
+    const recentUsers = users.slice(0, 5).map((u) => {
       const rawCreatedAt = (u as {createdAt?: unknown}).createdAt;
       let createdAtStr: string;
       try {
@@ -358,50 +295,23 @@ export const adminGetStats = onCall<Record<string, unknown>, Promise<AdminStatsR
       };
     });
 
-    const reports = reportSnap.docs.length
-      ? reportSnap.docs.map((r) => ({
-          id: r.id,
-          type: ((r.data() as {targetType?: string}).targetType === "comment"
-            ? "Comment"
-            : "Post") as "Post" | "Comment",
-          content: String((r.data() as {reason?: string}).reason ?? "Reported content"),
-          reportedBy: String((r.data() as {reporterId?: string}).reporterId ?? "Anonymous"),
-          date:
-            (r.data() as {createdAt?: Timestamp}).createdAt instanceof Timestamp
-              ? (r.data() as {createdAt: Timestamp}).createdAt.toDate().toLocaleString()
-              : new Date().toLocaleString(),
-          status: ((r.data() as {status?: string}).status === "resolved"
-            ? "Resolved"
-            : (r.data() as {status?: string}).status === "reviewed"
-              ? "Reviewed"
-              : "Pending") as "Pending" | "Reviewed" | "Resolved",
-        }))
-      : [
-          {
-            id: "rep_1",
-            type: "Post" as const,
-            content: "This is not helpful...",
-            reportedBy: "Anonymous",
-            date: new Date(now - 2 * 3600 * 1000).toLocaleString(),
-            status: "Pending" as const,
-          },
-          {
-            id: "rep_2",
-            type: "Comment" as const,
-            content: "Inappropriate language...",
-            reportedBy: "Anonymous",
-            date: new Date(now - 3 * 3600 * 1000).toLocaleString(),
-            status: "Pending" as const,
-          },
-          {
-            id: "rep_3",
-            type: "Post" as const,
-            content: "Off-topic content",
-            reportedBy: "Anonymous",
-            date: new Date(now - 4 * 3600 * 1000).toLocaleString(),
-            status: "Pending" as const,
-          },
-        ];
+    const reports = reportSnap.docs.map((r) => ({
+      id: r.id,
+      type: ((r.data() as {targetType?: string}).targetType === "comment"
+        ? "Comment"
+        : "Post") as "Post" | "Comment",
+      content: String((r.data() as {reason?: string}).reason ?? "Reported content"),
+      reportedBy: String((r.data() as {reporterId?: string}).reporterId ?? "Anonymous"),
+      date:
+        (r.data() as {createdAt?: Timestamp}).createdAt instanceof Timestamp
+          ? (r.data() as {createdAt: Timestamp}).createdAt.toDate().toLocaleString()
+          : new Date().toLocaleString(),
+      status: ((r.data() as {status?: string}).status === "resolved"
+        ? "Resolved"
+        : (r.data() as {status?: string}).status === "reviewed"
+          ? "Reviewed"
+          : "Pending") as "Pending" | "Reviewed" | "Resolved",
+    }));
 
     const affirmations = affSnap.docs.map((a) => ({
       id: a.id,
@@ -440,81 +350,61 @@ export const adminGetStats = onCall<Record<string, unknown>, Promise<AdminStatsR
             : "Active") as "Active" | "Draft" | "Archived",
     }));
 
+    /* Subscription metrics computed from the subscriptions collection */
+    const subs = subSnap.docs.map((d) => d.data() as {
+      plan?: string;
+      status?: string;
+      pricePaid?: number;
+    });
+    const activeSubs = subs.filter((s) => s.status === "active");
+    const monthlySubs = activeSubs.filter((s) => s.plan === "monthly").length;
+    const yearlySubs = activeSubs.filter((s) => s.plan === "yearly").length;
+    const trialSubs = subs.filter((s) => s.status === "trialing").length;
+    const cancelledSubs = subs.filter((s) => s.status === "cancelled").length;
+    const churnPercent = subs.length
+      ? Number(((cancelledSubs / subs.length) * 100).toFixed(1))
+      : 0;
+    const mrrCents = activeSubs.reduce(
+      (total, s) => total + Math.round((Number(s.pricePaid ?? 0) || 0) * 100),
+      0
+    );
+
     logger.info("adminGetStats: fetched dashboard metrics", {
       users: users.length,
       posts: posts.length,
     });
 
     return {
-      totalUsers: users.length || 12482,
-      totalPosts: posts.length || 3456,
-      totalComments: comments.length || 8923,
-      premiumSubscribers: subscribers.length || 2148,
-      userGrowth: 12,
-      postGrowth: 18,
-      commentGrowth: 21,
-      premiumGrowth: 15,
-      usersGrowthLast30D:
-        growthCumulative.some((v) => v > 200) && growthCumulative.length === 30
-          ? growthCumulative
-          : [
-              1100, 1400, 1500, 1800, 1900, 2100, 2400, 2600, 2800, 3100, 3300, 3400,
-              3700, 3900, 4200, 4500, 4800, 5100, 5400, 5700, 5900, 6200, 6500, 6700,
-              6900, 7100, 7350, 7500, 7700, 7842,
-            ],
+      totalUsers: users.length,
+      totalPosts: posts.length,
+      totalComments: comments.length,
+      premiumSubscribers: subscribers.length,
+      userGrowth: 0,
+      postGrowth: 0,
+      commentGrowth: 0,
+      premiumGrowth: 0,
+      usersGrowthLast30D: growthCumulative,
       contentDistribution,
       topTopics,
       recentUsers,
       reports,
       systemHealth: [
         {name: "Firebase Connection", status: "Online", tone: "#10B981"},
-        {name: "Authentication", status: "Healthy", tone: "#10B981"},
-        {name: "Firestore Database", status: "Healthy", tone: "#10B981"},
-        {name: "Storage", status: "Healthy", tone: "#10B981"},
+        {name: "Authentication", status: users.length ? "Active" : "Idle", tone: "#10B981"},
+        {name: "Firestore Database", status: "Connected", tone: "#10B981"},
+        {name: "Storage", status: "Configured", tone: "#10B981"},
         {name: "Analytics", status: "Active", tone: "#10B981"},
       ],
-      affirmations: affirmations.length
-        ? affirmations
-        : [
-            {
-              id: "aff_seed_1",
-              text: "You are doing better than you think.",
-              category: "Self Love",
-              createdAt: new Date().toISOString(),
-              author: "Admin",
-            },
-          ],
-      audios: audios.length
-        ? audios
-        : [
-            {
-              id: "aud_seed_1",
-              title: "Rain Sounds",
-              category: "Sleep",
-              durationSec: 600,
-              sizeKb: 12400,
-              published: true,
-              createdAt: new Date().toISOString(),
-            },
-          ],
-      challenges: challenges.length
-        ? challenges
-        : [
-            {
-              id: "ch_seed_1",
-              title: "7-Day Positivity Challenge",
-              days: 7,
-              participants: 320,
-              status: "Active",
-            },
-          ],
+      affirmations,
+      audios,
+      challenges,
       subscriptions: {
-        total: subscribers.length || 2148,
-        monthly: Math.round((subscribers.length || 2148) * 0.65),
-        yearly: Math.round((subscribers.length || 2148) * 0.35),
-        trials: 412,
-        churn: 1.8,
-        mrr: 9854,
+        total: subscribers.length,
+        monthly: monthlySubs,
+        yearly: yearlySubs,
+        trials: trialSubs,
+        churn: churnPercent,
+        mrr: mrrCents / 100,
       },
     };
   }
@@ -1180,4 +1070,243 @@ export const userGetDailyAffirmation = onCall<
     author: String(d.data().author ?? "Mindora"),
     date: today,
   };
+});
+
+/* ------------------------------ Marketing ------------------------------ */
+
+export const newsletterSubscribe = onCall<
+  {email?: string},
+  Promise<{subscribed: boolean}>
+>(async (req) => {
+  const raw = String(req.data?.email ?? "").trim().toLowerCase();
+  const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailPattern.test(raw)) {
+    throw new HttpsError("invalid-argument", "A valid email is required.");
+  }
+  const ref = db.collection(COLLECTIONS.newsletterSubscribers).doc(raw);
+  const existing = await ref.get();
+  if (!existing.exists) {
+    await ref.set({
+      email: raw,
+      source: "footer",
+      createdAt: FieldValue.serverTimestamp(),
+    });
+  }
+  return {subscribed: true};
+});
+
+/* ---------------------------- Public content ---------------------------- */
+
+export const contactSubmit = onCall<
+  {name?: string; email?: string; subject?: string; message?: string},
+  Promise<{received: boolean}>
+>(async (req) => {
+  const name = String(req.data?.name ?? "").trim();
+  const email = String(req.data?.email ?? "").trim().toLowerCase();
+  const subject = String(req.data?.subject ?? "").trim();
+  const message = String(req.data?.message ?? "").trim();
+  const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (name.length < 2) {
+    throw new HttpsError("invalid-argument", "Please provide your name.");
+  }
+  if (!emailPattern.test(email)) {
+    throw new HttpsError("invalid-argument", "A valid email is required.");
+  }
+  if (message.length < 10) {
+    throw new HttpsError("invalid-argument", "Please include a longer message.");
+  }
+  await db.collection(COLLECTIONS.contactMessages).add({
+    name,
+    email,
+    subject: subject || "General enquiry",
+    message,
+    uid: req.auth?.uid ?? null,
+    createdAt: FieldValue.serverTimestamp(),
+    status: "new",
+  });
+  return {received: true};
+});
+
+interface BlogPostRecord {
+  id: string;
+  title: string;
+  excerpt: string;
+  category: string;
+  author: string;
+  createdAt: string;
+  readMinutes: number;
+}
+
+export const blogListPosts = onCall<
+  {limit?: number},
+  Promise<BlogPostRecord[]>
+>(async (req) => {
+  const limit = Math.min(Number(req.data?.limit ?? 20), 50);
+  const snap = await db
+    .collection(COLLECTIONS.blogPosts)
+    .where("published", "==", true)
+    .orderBy("createdAt", "desc")
+    .limit(limit)
+    .get();
+  return snap.docs.map((d) => {
+    const data = d.data();
+    return {
+      id: d.id,
+      title: String(data.title ?? ""),
+      excerpt: String(data.excerpt ?? ""),
+      category: String(data.category ?? "Wellness"),
+      author: String(data.author ?? "Mindora Team"),
+      readMinutes: Number(data.readMinutes ?? 4),
+      createdAt:
+        data.createdAt instanceof Timestamp
+          ? data.createdAt.toDate().toISOString()
+          : new Date().toISOString(),
+    };
+  });
+});
+
+interface JobOpeningRecord {
+  id: string;
+  title: string;
+  team: string;
+  location: string;
+  type: string;
+  description: string;
+}
+
+export const careersListOpenings = onCall<
+  Record<string, unknown>,
+  Promise<JobOpeningRecord[]>
+>(async () => {
+  const snap = await db
+    .collection(COLLECTIONS.jobOpenings)
+    .where("status", "==", "open")
+    .get();
+  return snap.docs.map((d) => {
+    const data = d.data();
+    return {
+      id: d.id,
+      title: String(data.title ?? ""),
+      team: String(data.team ?? "Mindora"),
+      location: String(data.location ?? "Remote"),
+      type: String(data.type ?? "Full-time"),
+      description: String(data.description ?? ""),
+    };
+  });
+});
+
+/* ========================= USER: SETTINGS / ACCOUNT ========================= */
+
+export interface UserSettings {
+  timezone: string;
+  notifications: {
+    dailyCheckIn: boolean;
+    eveningWindDown: boolean;
+    communityReplies: boolean;
+    productUpdates: boolean;
+    reminderTime: string;
+  };
+  privacy: {
+    postsPrivate: boolean;
+    showInDirectory: boolean;
+    shareStreakBadge: boolean;
+    defaultVisibility: "anonymous" | "friends" | "public";
+    allowFriendRequests: boolean;
+  };
+}
+
+export const DEFAULT_USER_SETTINGS: UserSettings = {
+  timezone: "America/Los_Angeles",
+  notifications: {
+    dailyCheckIn: true,
+    eveningWindDown: true,
+    communityReplies: false,
+    productUpdates: true,
+    reminderTime: "08:30",
+  },
+  privacy: {
+    postsPrivate: true,
+    showInDirectory: false,
+    shareStreakBadge: true,
+    defaultVisibility: "anonymous",
+    allowFriendRequests: false,
+  },
+};
+
+function coerceBoolean(value: unknown, fallback: boolean): boolean {
+  return typeof value === "boolean" ? value : fallback;
+}
+
+function normalizeSettings(raw: unknown): UserSettings {
+  const input = (raw ?? {}) as Partial<UserSettings>;
+  const notifications = (input.notifications ?? {}) as Partial<UserSettings["notifications"]>;
+  const privacy = (input.privacy ?? {}) as Partial<UserSettings["privacy"]>;
+  const visibility = privacy.defaultVisibility;
+  const reminder = typeof notifications.reminderTime === "string" ? notifications.reminderTime : "";
+  return {
+    timezone:
+      typeof input.timezone === "string" && input.timezone.trim()
+        ? input.timezone.trim()
+        : DEFAULT_USER_SETTINGS.timezone,
+    notifications: {
+      dailyCheckIn: coerceBoolean(notifications.dailyCheckIn, DEFAULT_USER_SETTINGS.notifications.dailyCheckIn),
+      eveningWindDown: coerceBoolean(notifications.eveningWindDown, DEFAULT_USER_SETTINGS.notifications.eveningWindDown),
+      communityReplies: coerceBoolean(notifications.communityReplies, DEFAULT_USER_SETTINGS.notifications.communityReplies),
+      productUpdates: coerceBoolean(notifications.productUpdates, DEFAULT_USER_SETTINGS.notifications.productUpdates),
+      reminderTime: /^\d{2}:\d{2}$/.test(reminder) ? reminder : DEFAULT_USER_SETTINGS.notifications.reminderTime,
+    },
+    privacy: {
+      postsPrivate: coerceBoolean(privacy.postsPrivate, DEFAULT_USER_SETTINGS.privacy.postsPrivate),
+      showInDirectory: coerceBoolean(privacy.showInDirectory, DEFAULT_USER_SETTINGS.privacy.showInDirectory),
+      shareStreakBadge: coerceBoolean(privacy.shareStreakBadge, DEFAULT_USER_SETTINGS.privacy.shareStreakBadge),
+      defaultVisibility:
+        visibility === "public" || visibility === "friends" || visibility === "anonymous"
+          ? visibility
+          : DEFAULT_USER_SETTINGS.privacy.defaultVisibility,
+      allowFriendRequests: coerceBoolean(privacy.allowFriendRequests, DEFAULT_USER_SETTINGS.privacy.allowFriendRequests),
+    },
+  };
+}
+
+export const userGetSettings = onCall<Record<string, unknown>, Promise<UserSettings>>(
+  async (req) => {
+    const uid = await requireUser(req);
+    const doc = await db.collection(COLLECTIONS.userSettings).doc(uid).get();
+    if (!doc.exists) return normalizeSettings(DEFAULT_USER_SETTINGS);
+    return normalizeSettings(doc.data());
+  }
+);
+
+export const userUpdateSettings = onCall<
+  {settings?: Partial<UserSettings>},
+  Promise<UserSettings>
+>(async (req) => {
+  const uid = await requireUser(req);
+  const next = normalizeSettings(req.data?.settings);
+  await db
+    .collection(COLLECTIONS.userSettings)
+    .doc(uid)
+    .set({...next, updatedAt: FieldValue.serverTimestamp()}, {merge: true});
+  return next;
+});
+
+export const userDeleteAccount = onCall<
+  Record<string, unknown>,
+  Promise<{deleted: boolean}>
+>(async (req) => {
+  const uid = await requireUser(req);
+  const collections = [
+    COLLECTIONS.moods,
+    COLLECTIONS.savedItems,
+    COLLECTIONS.likes,
+    COLLECTIONS.notifications,
+  ];
+  for (const name of collections) {
+    const snap = await db.collection(name).where("uid", "==", uid).get();
+    await Promise.all(snap.docs.map((d) => d.ref.delete()));
+  }
+  await db.collection(COLLECTIONS.userSettings).doc(uid).delete().catch(() => undefined);
+  await db.collection(COLLECTIONS.users).doc(uid).delete().catch(() => undefined);
+  await auth.deleteUser(uid);
+  return {deleted: true};
 });

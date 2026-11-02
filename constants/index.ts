@@ -16,7 +16,6 @@ export function startsWithAppPath(path: string): boolean {
 export interface LabelledLink {
   href: string;
   label: string;
-  comingSoon?: boolean;
 }
 
 export const navLinks: LabelledLink[] = [
@@ -41,25 +40,17 @@ export const footerLinks: {
   ],
   company: [
     { href: "/about", label: "About Us" },
-    { href: "/about", label: "Our Story" },
-    { href: "/about", label: "Careers", comingSoon: true },
-    { href: "/about", label: "Blog", comingSoon: true },
-    { href: "/about", label: "Contact", comingSoon: true },
+    { href: "/careers", label: "Careers" },
+    { href: "/blog", label: "Blog" },
+    { href: "/contact", label: "Contact" },
   ],
   support: [
-    { href: "#", label: "Help Center", comingSoon: true },
-    { href: "#", label: "Community Guidelines", comingSoon: true },
-    { href: "#", label: "Privacy Policy", comingSoon: true },
-    { href: "#", label: "Terms of Service", comingSoon: true },
+    { href: "/help-center", label: "Help Center" },
+    { href: "/community-guidelines", label: "Community Guidelines" },
+    { href: "/privacy-policy", label: "Privacy Policy" },
+    { href: "/terms-of-service", label: "Terms of Service" },
   ],
 };
-
-export const socialLinks: (LabelledLink & { platform: "twitter" | "instagram" | "linkedin" | "facebook" })[] = [
-  { href: "#", label: "Twitter", platform: "twitter", comingSoon: true },
-  { href: "#", label: "Instagram", platform: "instagram", comingSoon: true },
-  { href: "#", label: "LinkedIn", platform: "linkedin", comingSoon: true },
-  { href: "#", label: "Facebook", platform: "facebook", comingSoon: true },
-];
 
 export const moods: Mood[] = [
   {

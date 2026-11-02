@@ -463,7 +463,7 @@ function PremiumFAQ() {
           </h2>
         </div>
         <Link
-          href="#contact"
+          href="/contact"
           className="inline-flex items-center gap-1.5 text-sm md:text-base font-semibold text-brightPurple hover:text-primaryPurple transition-colors group"
         >
           <Mail className="h-4 w-4" />

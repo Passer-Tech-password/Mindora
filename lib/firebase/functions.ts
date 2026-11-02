@@ -313,4 +313,81 @@ export const callables = {
       Record<string, unknown>,
       {id: string; text: string; category: string; author: string; date: string}
     >("userGetDailyAffirmation", {}),
+
+  /* Marketing */
+  newsletterSubscribe: (input: {email: string}) =>
+    callFunction<{email: string}, {subscribed: boolean}>(
+      "newsletterSubscribe",
+      input
+    ),
+  contactSubmit: (input: {
+    name: string;
+    email: string;
+    subject?: string;
+    message: string;
+  }) =>
+    callFunction<
+      {name: string; email: string; subject?: string; message: string},
+      {received: boolean}
+    >("contactSubmit", input),
+
+  /* Public content */
+  blogListPosts: (input: {limit?: number} = {}) =>
+    callFunction<{limit?: number}, BlogPostRecord[]>("blogListPosts", input),
+  careersListOpenings: () =>
+    callFunction<Record<string, unknown>, JobOpeningRecord[]>(
+      "careersListOpenings",
+      {}
+    ),
+
+  /* User settings & account */
+  userGetSettings: () =>
+    callFunction<Record<string, unknown>, UserSettings>("userGetSettings", {}),
+  userUpdateSettings: (input: {settings: UserSettings}) =>
+    callFunction<{settings: UserSettings}, UserSettings>(
+      "userUpdateSettings",
+      input
+    ),
+  userDeleteAccount: () =>
+    callFunction<Record<string, unknown>, {deleted: boolean}>(
+      "userDeleteAccount",
+      {}
+    ),
 } as const;
+
+export interface UserSettings {
+  timezone: string;
+  notifications: {
+    dailyCheckIn: boolean;
+    eveningWindDown: boolean;
+    communityReplies: boolean;
+    productUpdates: boolean;
+    reminderTime: string;
+  };
+  privacy: {
+    postsPrivate: boolean;
+    showInDirectory: boolean;
+    shareStreakBadge: boolean;
+    defaultVisibility: "anonymous" | "friends" | "public";
+    allowFriendRequests: boolean;
+  };
+}
+
+export interface BlogPostRecord {
+  id: string;
+  title: string;
+  excerpt: string;
+  category: string;
+  author: string;
+  readMinutes: number;
+  createdAt: string;
+}
+
+export interface JobOpeningRecord {
+  id: string;
+  title: string;
+  team: string;
+  location: string;
+  type: string;
+  description: string;
+}

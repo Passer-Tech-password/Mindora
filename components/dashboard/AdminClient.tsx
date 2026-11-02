@@ -36,7 +36,7 @@ import {
   Crown as CrownIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
-import { useAuth, AdminStats, ADMIN_EMAIL_LOGIN_HINT } from "@/components/auth/AuthContext";
+import { useAuth, AdminStats } from "@/components/auth/AuthContext";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
@@ -399,7 +399,7 @@ export function AdminClient() {
                     aria-selected={range === t}
                     onClick={() => !disabled && setRange(t)}
                     disabled={disabled}
-                    title={disabled ? "Demo dataset: 30-day window only" : `${t} signup growth`}
+                    title={disabled ? "Only the 30-day range is available" : `${t} signup growth`}
                     className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
                       range === t
                         ? "bg-offWhite text-brandText shadow-sm"
@@ -787,22 +787,31 @@ export function AdminClient() {
                 </button>
                 <div className="flex items-center gap-2 rounded-2xl hover:bg-softLavender px-2 py-1">
                   <div className="relative h-8 w-8 overflow-hidden rounded-full ring-2 ring-softLavender bg-lavender">
-                    <img
-                      src={user?.avatar || defaultAvatarUrl("Admin")}
-                      alt={user?.fullName || "Admin"}
-                      className="h-full w-full object-cover"
-                      onError={(e) => {
-                        const tgt = e.currentTarget;
-                        tgt.style.display = "none";
-                        const parent = tgt.parentElement;
-                        if (parent && !parent.querySelector(".avatar-fallback")) {
-                          const initials = document.createElement("span");
-                          initials.className = "avatar-fallback absolute inset-0 flex items-center justify-center text-xs font-bold text-primaryPurple";
-                          initials.textContent = ((user?.fullName ?? "A").match(/\b\p{L}/gu) ?? ["A"]).slice(0, 2).join("").toUpperCase();
-                          parent.appendChild(initials);
-                        }
-                      }}
-                    />
+                    {user?.avatar ? (
+                      <img
+                        src={user.avatar}
+                        alt={user?.fullName || "Admin"}
+                        className="h-full w-full object-cover"
+                        onError={(e) => {
+                          const tgt = e.currentTarget;
+                          tgt.style.display = "none";
+                          const parent = tgt.parentElement;
+                          if (parent && !parent.querySelector(".avatar-fallback")) {
+                            const initials = document.createElement("span");
+                            initials.className = "avatar-fallback absolute inset-0 flex items-center justify-center text-xs font-bold text-primaryPurple";
+                            initials.textContent = ((user?.fullName ?? "A").match(/\b\p{L}/gu) ?? ["A"]).slice(0, 2).join("").toUpperCase();
+                            parent.appendChild(initials);
+                          }
+                        }}
+                      />
+                    ) : (
+                      <span className="absolute inset-0 flex items-center justify-center text-xs font-bold text-primaryPurple">
+                        {((user?.fullName ?? "Admin").match(/\b\p{L}/gu) ?? ["A"])
+                          .slice(0, 2)
+                          .join("")
+                          .toUpperCase()}
+                      </span>
+                    )}
                   </div>
                   <div className="hidden sm:block text-left">
                     <div className="text-sm font-bold text-brandText leading-tight">{user?.fullName || "Admin"}</div>
@@ -1332,11 +1341,4 @@ export function AdminClient() {
       )}
     </div>
   );
-}
-
-function defaultAvatarUrl(name: string) {
-  const prompt = encodeURIComponent(
-    `professional headshot portrait of ${name}, warm friendly smile, mindfulness coach aesthetic, soft studio lighting, clean background`
-  );
-  return `https://coresg-normal.trae.ai/api/ide/v1/text_to_image?prompt=${prompt}&image_size=square`;
 }

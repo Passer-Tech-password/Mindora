@@ -4,8 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/Button";
 import { PhoneMockup } from "@/components/ui/PhoneMockup";
-import { affirmations, audioTracks, moods } from "@/constants";
-import { posts, weekStreakData } from "@/data/mockData";
+import { affirmations, audioTracks, communityCategories, moods } from "@/constants";
 import {
   ArrowRight,
   Heart,
@@ -15,16 +14,34 @@ import {
   Flame,
   Trophy,
   Check,
-  MoreHorizontal,
-  MessageCircle,
   Music2,
   Sparkles,
   Crown,
-  User,
+  Shield,
+  Sunrise,
   Headphones,
   Quote,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+function getCommunityIcon(name: string) {
+  const map: Record<string, React.ComponentType<{ className?: string }>> = {
+    trophy: Trophy,
+    heart: Heart,
+    shield: Shield,
+    sparkles: Sparkles,
+    sunrise: Sunrise,
+  };
+  return map[name] ?? Sparkles;
+}
+
+const communityCategoryDescriptions: Record<string, string> = {
+  "daily-wins": "Celebrate the small steps that move you forward.",
+  "self-love": "Gentle practices to be kind to yourself.",
+  "anxiety-support": "A calm space to share worries and breathe together.",
+  motivation: "A gentle nudge forward when you need it most.",
+  gratitude: "Notice and share the good in everyday moments.",
+};
 
 /* ---------- PHONE SCREENS ---------- */
 
@@ -552,32 +569,26 @@ function Step4Community() {
         <div className="order-2 lg:order-1">
           <div className="max-w-md mx-auto lg:mx-0">
             <div className="rounded-[1.75rem] bg-white border border-lavender/50 p-5 md:p-6 shadow-card hover:shadow-glow transition-shadow">
-              <div className="flex items-start justify-between gap-2 mb-3">
-                <div className="flex items-start gap-3">
-                  <div className="h-10 w-10 rounded-2xl bg-gradient-to-br from-brandSecondaryText to-[#766D80] flex items-center justify-center shadow-soft shrink-0">
-                    <User className="h-4 w-4 text-white" />
-                  </div>
-                  <div>
-                    <div className="text-xs font-semibold text-brandText">Anonymous</div>
-                    <div className="text-[11px] text-brandSecondaryText mt-0.5">2h ago</div>
-                  </div>
-                </div>
-                <button className="h-8 w-8 rounded-xl flex items-center justify-center text-brandSecondaryText hover:text-brandText hover:bg-softLavender transition-colors" aria-label="More">
-                  <MoreHorizontal className="h-4 w-4" />
-                </button>
+              <div className="text-xs font-semibold text-brandSecondaryText mb-3">
+                Community spaces
               </div>
-              <p className="text-sm md:text-[15px] leading-relaxed text-brandText/90">
-                Today I chose myself. Small steps, big changes. Grateful for this journey.
-              </p>
-              <div className="mt-4 flex items-center gap-5 text-xs text-brandSecondaryText">
-                <span className="inline-flex items-center gap-1.5 group cursor-pointer">
-                  <Heart className="h-4 w-4 text-brightPurple fill-brightPurple group-hover:scale-110 transition-transform" />
-                  <span className="font-medium">128</span>
-                </span>
-                <span className="inline-flex items-center gap-1.5 group cursor-pointer">
-                  <MessageCircle className="h-4 w-4 group-hover:text-brightPurple transition-colors" />
-                  <span className="font-medium">24</span>
-                </span>
+              <div className="space-y-3">
+                {communityCategories.map((c) => {
+                  const Icon = getCommunityIcon(c.icon);
+                  return (
+                    <div key={c.id} className="flex items-center gap-3">
+                      <div className={cn("h-9 w-9 rounded-xl bg-gradient-to-br flex items-center justify-center shadow-soft shrink-0", c.gradient)}>
+                        <Icon className="h-4 w-4 text-primaryPurple" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="text-xs font-semibold text-brandText">{c.name}</div>
+                        <div className="text-[11px] text-brandSecondaryText mt-0.5">
+                          {communityCategoryDescriptions[c.id]}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </div>

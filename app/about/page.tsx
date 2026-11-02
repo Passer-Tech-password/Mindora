@@ -204,7 +204,7 @@ export default function AboutPage() {
                   <Link href="/signup">Join Our Journey</Link>
                 </Button>
                 <Button size="lg" variant="secondary" asChild>
-                  <Link href="#">
+                  <Link href="/how-it-works">
                     <Play className="h-4 w-4 mr-2 fill-brandText/20" />
                     Watch Our Story
                   </Link>

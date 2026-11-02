@@ -7,11 +7,12 @@ import { PhoneMockup } from "@/components/ui/PhoneMockup";
 import {
   affirmations,
   benefitsHome,
+  communityCategories,
   exploreCategories,
   moods,
   premiumBenefits,
 } from "@/constants";
-import { posts, weekStreakData } from "@/data/mockData";
+import { weekStreakData } from "@/data/mockData";
 import {
   ArrowRight,
   Bookmark,
@@ -28,6 +29,14 @@ import {
 } from "lucide-react";
 import * as LucideIcons from "lucide-react";
 import { cn } from "@/lib/utils";
+
+const communityCategoryDescriptions: Record<string, string> = {
+  "daily-wins": "Celebrate the small steps that move you forward.",
+  "self-love": "Gentle practices to be kind to yourself.",
+  "anxiety-support": "A calm space to share worries and breathe together.",
+  motivation: "A gentle nudge forward when you need it most.",
+  gratitude: "Notice and share the good in everyday moments.",
+};
 
 function HomePhoneScreen() {
   return (
@@ -444,7 +453,7 @@ function Explore() {
           return (
             <Link
               key={c.id}
-              href="#"
+              href="/features"
               className="group relative overflow-hidden rounded-3xl p-6 h-full min-h-[168px] border border-lavender/50 bg-white shadow-card hover:shadow-glow hover:-translate-y-1 transition-transform"
             >
               <div aria-hidden className={cn("pointer-events-none absolute inset-0 bg-gradient-to-br opacity-60", c.gradient)} />
@@ -588,7 +597,6 @@ function StreakSection() {
 }
 
 function CommunitySection() {
-  const joinPosts = posts.slice(0, 3);
   return (
     <section className="container py-16 md:py-20">
       <div className="max-w-3xl mx-auto text-center mb-10 md:mb-14">
@@ -601,37 +609,29 @@ function CommunitySection() {
       </div>
 
       <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-5">
-        {joinPosts.map((post) => (
-          <div
-            key={post.id}
-            className="rounded-3xl bg-gradient-to-br from-white to-softLavender/30 border border-lavender/50 shadow-card hover:shadow-glow transition-colors p-5"
-          >
-            <div className="flex items-start gap-3 mb-3">
-              <div className="h-10 w-10 rounded-2xl bg-gradient-to-br from-brandSecondaryText to-[#766D80] flex items-center justify-center shadow-soft shrink-0">
-                <LucideIcons.User className="h-4 w-4 text-white" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <p className="text-xs font-semibold text-brandText">Anonymous</p>
-                  <span className="inline-flex items-center rounded-full bg-brightPurple/10 text-brightPurple px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider">
-                    {post.category.replace(/-/g, " ")}
-                  </span>
+        {communityCategories.map((c) => {
+          const Icon = getIcon(c.icon);
+          return (
+            <div
+              key={c.id}
+              className="rounded-3xl bg-gradient-to-br from-white to-softLavender/30 border border-lavender/50 shadow-card hover:shadow-glow transition-colors p-5"
+            >
+              <div className="flex items-start gap-3 mb-3">
+                <div className={cn("h-10 w-10 rounded-2xl bg-gradient-to-br flex items-center justify-center shadow-soft shrink-0", c.gradient)}>
+                  <Icon className="h-4 w-4 text-primaryPurple" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-xs font-semibold text-brandText">{c.name}</p>
+                  </div>
                 </div>
               </div>
+              <p className="text-xs md:text-sm leading-relaxed text-brandText/90 line-clamp-5">
+                {communityCategoryDescriptions[c.id]}
+              </p>
             </div>
-            <p className="text-xs md:text-sm leading-relaxed text-brandText/90 line-clamp-5">{post.content}</p>
-            <div className="mt-4 flex items-center gap-3 text-xs text-brandSecondaryText">
-              <span className="inline-flex items-center gap-1.5">
-                <Heart className="h-3.5 w-3.5 text-brightPurple fill-brightPurple/20" />
-                {post.likesCount}
-              </span>
-              <span className="inline-flex items-center gap-1.5">
-                <LucideIcons.MessageCircle className="h-3.5 w-3.5" />
-                {post.commentsCount}
-              </span>
-            </div>
-          </div>
-        ))}
+          );
+        })}
 
         <div className="rounded-3xl bg-gradient-to-br from-brightPurple/10 via-softLavender/60 to-lavender/30 border border-lavender/50 p-6 md:p-7 flex flex-col">
           <h3 className="text-lg md:text-xl font-semibold text-brandText tracking-tight leading-tight">
