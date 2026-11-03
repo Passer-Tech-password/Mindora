@@ -79,6 +79,13 @@ function UserGrowthChart({ data }: { data: number[] }) {
   const W = 640;
   const H = 220;
   const pad = { l: 36, r: 12, t: 28, b: 28 };
+  if (!data || data.length < 2) {
+    return (
+      <div className="flex h-[220px] w-full items-center justify-center rounded-2xl border border-dashed border-lavender/60 bg-softLavender/20">
+        <p className="text-sm text-brandText/60">No growth data available yet.</p>
+      </div>
+    );
+  }
   const max = Math.max(...data) * 1.1;
   const min = 0;
   const xStep = (W - pad.l - pad.r) / (data.length - 1);
