@@ -73,7 +73,7 @@ export function DashboardShell({ title, subtitle, children }: DashboardShellProp
 
       {/* Sidebar */}
       <aside
-        className={`fixed lg:sticky top-0 z-40 h-screen w-72 shrink-0 bg-white/95 backdrop-blur-md border-r border-lavender/50 flex flex-col transition-transform duration-300 ${
+        className={`fixed lg:sticky top-0 z-40 h-[100dvh] w-72 max-w-[85vw] shrink-0 bg-white/95 backdrop-blur-md border-r border-lavender/50 flex flex-col transition-transform duration-300 ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         }`}
       >
@@ -176,17 +176,17 @@ export function DashboardShell({ title, subtitle, children }: DashboardShellProp
       <div className="min-w-0 flex-1 flex flex-col">
         {/* Top bar */}
         <header className="sticky top-0 z-20 bg-offWhite/85 backdrop-blur-md border-b border-lavender/40">
-          <div className="flex items-center gap-3 px-4 sm:px-6 lg:px-10 py-4">
+          <div className="flex items-center gap-2 px-4 py-4 sm:gap-3 sm:px-6 lg:px-10">
             <button
               type="button"
               aria-label="Open sidebar"
               onClick={() => setSidebarOpen(true)}
-              className="lg:hidden h-10 w-10 rounded-2xl border border-lavender/60 bg-white flex items-center justify-center text-brandSecondaryText"
+              className="lg:hidden h-10 w-10 shrink-0 rounded-2xl border border-lavender/60 bg-white flex items-center justify-center text-brandSecondaryText"
             >
               <Menu className="h-5 w-5" />
             </button>
 
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <h1 className="text-lg sm:text-xl font-bold tracking-tight text-brandText truncate">
                 {title}
               </h1>

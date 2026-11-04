@@ -429,7 +429,7 @@ export function DashboardClient() {
 
       {/* Sidebar */}
       <aside
-        className={`fixed lg:sticky top-0 z-40 h-screen w-72 shrink-0 bg-white/95 backdrop-blur-md border-r border-lavender/50 flex flex-col transition-transform duration-300 ${
+        className={`fixed lg:sticky top-0 z-40 h-[100dvh] w-72 max-w-[85vw] shrink-0 bg-white/95 backdrop-blur-md border-r border-lavender/50 flex flex-col transition-transform duration-300 ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         }`}
       >
@@ -526,19 +526,19 @@ export function DashboardClient() {
       <div className="min-w-0 flex-1 flex flex-col">
         {/* Top bar */}
         <header className="sticky top-0 z-20 bg-offWhite/85 backdrop-blur-md border-b border-lavender/40">
-          <div className="flex items-center gap-3 px-4 sm:px-6 lg:px-10 py-4">
+          <div className="flex items-center gap-2 px-3 py-4 sm:gap-3 sm:px-6 lg:px-10">
             <button
               type="button"
               aria-label="Open sidebar"
               onClick={() => setSidebarOpen(true)}
-              className="lg:hidden h-10 w-10 rounded-2xl border border-lavender/60 bg-white flex items-center justify-center text-brandSecondaryText"
+              className="lg:hidden h-10 w-10 shrink-0 rounded-2xl border border-lavender/60 bg-white flex items-center justify-center text-brandSecondaryText"
             >
               <Menu className="h-5 w-5" />
             </button>
 
-            <div className="relative flex-1 max-w-xl">
+            <div className="relative min-w-0 flex-1 max-w-xl">
               <span className="pointer-events-none absolute inset-y-0 left-4 flex items-center text-brandSecondaryText/70">
-                <Search className="h-4.5 w-4.5" />
+                <Search className="h-4 w-4" />
               </span>
               <input
                 type="search"
@@ -548,16 +548,16 @@ export function DashboardClient() {
                 onBlur={() => window.setTimeout(() => setSearchFocused(false), 150)}
                 aria-label="Search Mindora"
                 placeholder="Search Mindora"
-                className="block w-full h-11 rounded-2xl border border-lavender/50 bg-white pl-11 pr-11 text-sm text-brandText placeholder:text-brandSecondaryText/50 focus:border-brightPurple focus:outline-none focus:ring-2 focus:ring-brightPurple/20 transition-all"
+                className="block w-full h-11 rounded-2xl border border-lavender/50 bg-white pl-10 pr-3 text-sm text-brandText placeholder:text-brandSecondaryText/50 focus:border-brightPurple focus:outline-none focus:ring-2 focus:ring-brightPurple/20 transition-all sm:pl-11 sm:pr-11"
               />
               <span
                 aria-hidden
-                className="absolute inset-y-0 right-2 my-1.5 h-auto w-9 rounded-xl bg-lavender text-brandSecondaryText/70 flex items-center justify-center"
+                className="absolute inset-y-0 right-2 my-1.5 hidden h-auto w-9 rounded-xl bg-lavender text-brandSecondaryText/70 sm:flex items-center justify-center"
               >
                 <Search className="h-4 w-4" />
               </span>
               {searchFocused && searchQuery.trim() !== "" && (
-                <div className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-30 rounded-2xl border border-lavender/60 bg-white shadow-card overflow-hidden">
+                <div className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-30 min-w-[15rem] rounded-2xl border border-lavender/60 bg-white shadow-card overflow-hidden">
                   {searchResults.length === 0 ? (
                     <p className="px-4 py-3 text-sm text-brandSecondaryText">
                       No results for &ldquo;{searchQuery.trim()}&rdquo;.
@@ -596,6 +596,7 @@ export function DashboardClient() {
               )}
             </div>
 
+            <div className="ml-auto flex shrink-0 items-center gap-2 sm:gap-3">
             <button
               type="button"
               aria-label="Notifications"
@@ -628,8 +629,9 @@ export function DashboardClient() {
                     </div>
                   )}
                 </div>
-                <ChevronDown className="h-4 w-4 text-brandSecondaryText" />
+                <ChevronDown className="hidden h-4 w-4 text-brandSecondaryText sm:block" />
               </button>
+            </div>
             </div>
           </div>
         </header>
@@ -637,7 +639,7 @@ export function DashboardClient() {
         {/* Content */}
         <div className="px-4 sm:px-6 lg:px-10 py-6 lg:py-8">
           {/* Hero Banner */}
-          <section className="relative rounded-[2rem] overflow-hidden p-6 md:p-10 mb-6 lg:mb-8">
+          <section className="relative rounded-[2rem] overflow-hidden p-5 sm:p-6 md:p-10 mb-6 lg:mb-8">
             <div
               aria-hidden
               className="absolute inset-0 bg-gradient-to-r from-softLavender via-indigo-100 to-violet-200"
@@ -666,7 +668,7 @@ export function DashboardClient() {
               className="absolute top-0 left-1/2 h-40 w-80 -translate-x-1/2 rounded-full bg-white/40 blur-3xl"
             />
             <div className="relative max-w-2xl">
-              <h1 className="text-2xl md:text-3xl lg:text-4xl font-semibold tracking-tight text-brandText">
+              <h1 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-semibold tracking-tight text-brandText">
                 {greeting.phrase}, {user.firstName}! {greeting.emoji}
               </h1>
               <p className="mt-2 md:mt-3 text-sm md:text-base text-brandSecondaryText/90">
@@ -708,11 +710,11 @@ export function DashboardClient() {
           </section>
 
           {/* Grid: left main widgets + right sidebar */}
-          <div className="grid gap-6 lg:gap-8 lg:grid-cols-[minmax(0,1fr)_340px]">
+          <div className="grid gap-6 lg:gap-8 xl:grid-cols-[minmax(0,1fr)_320px]">
             {/* LEFT COLUMN */}
             <div className="space-y-6 lg:space-y-8">
               {/* Mood Check-in + Daily Affirmation + 14 Day Streak row */}
-              <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,1.2fr)_minmax(0,0.8fr)]">
+              <div className="grid gap-6 md:grid-cols-2">
                 {/* MOOD */}
                 <section className="rounded-3xl bg-white border border-lavender/50 shadow-card p-5 md:p-6">
                   <div className="flex items-start justify-between mb-5">
@@ -751,7 +753,7 @@ export function DashboardClient() {
                           aria-label={`Pick ${m.label} mood`}
                         >
                           <div
-                            className="h-11 w-11 md:h-12 md:w-12 rounded-2xl flex items-center justify-center text-xl"
+                            className="aspect-square w-full max-w-[2.75rem] rounded-2xl flex items-center justify-center text-xl md:max-w-[3rem]"
                             style={{ backgroundColor: m.bg }}
                           >
                             {m.e}
@@ -771,8 +773,8 @@ export function DashboardClient() {
                         "linear-gradient(120deg,#F3EDFF 0%,#E0E7FF 55%,#F5F3FF 100%)",
                     }}
                   >
-                    <div className="absolute right-0 -bottom-1 w-28 h-28 opacity-60">
-                      <svg viewBox="0 0 100 100" aria-hidden>
+                    <div className="pointer-events-none absolute right-0 -bottom-1 w-28 h-28 opacity-60">
+                      <svg viewBox="0 0 100 100" className="h-full w-full" aria-hidden>
                         <g fill="#6D3FE8" opacity="0.55">
                           <path d="M50 10 C 58 20 62 28 56 38 C 66 40 72 48 64 56 C 74 60 82 70 72 80 C 78 88 70 96 60 92 L 50 98 L 40 92 C 30 96 22 88 28 80 C 18 70 26 60 36 56 C 28 48 34 40 44 38 C 38 28 42 20 50 10 Z" />
                           <ellipse cx="50" cy="58" rx="18" ry="14" fill="#C9B8F3" />
@@ -780,9 +782,9 @@ export function DashboardClient() {
                         </g>
                       </svg>
                     </div>
-                    <div className="relative max-w-[78%]">
+                    <div className="relative">
                       <div className="flex items-center gap-2">
-                        <Flower2 className="h-4.5 w-4.5 text-brightPurple" />
+                        <Flower2 className="h-4 w-4 text-brightPurple" />
                         <h4 className="font-semibold text-brandText">
                           Feeling anxious?
                         </h4>
@@ -829,7 +831,7 @@ export function DashboardClient() {
                   <div className="relative flex items-start justify-between mb-4">
                     <div className="flex items-center gap-2">
                       <div className="h-9 w-9 rounded-2xl bg-white/15 backdrop-blur-sm flex items-center justify-center">
-                        <Sparkles className="h-4.5 w-4.5 text-softGold" />
+                        <Sparkles className="h-4 w-4 text-softGold" />
                       </div>
                       <span className="font-semibold tracking-wider text-[13px]">
                         Daily Affirmation
@@ -844,7 +846,7 @@ export function DashboardClient() {
                     <div className="absolute left-1/2 top-0 -translate-x-1/2 opacity-80">
                       <Quote className="h-7 w-7 text-softGold/80" />
                     </div>
-                    <blockquote className="text-2xl md:text-3xl lg:text-[32px] font-semibold tracking-tight leading-tight max-w-md mx-auto">
+                    <blockquote className="text-xl sm:text-2xl md:text-3xl font-semibold tracking-tight leading-tight max-w-md mx-auto">
                       &ldquo;{dailyAffirmation?.text ?? "You are doing better than you think."}&rdquo;
                     </blockquote>
                     {dailyAffirmation?.category ? (
@@ -878,7 +880,7 @@ export function DashboardClient() {
                         }`}
                       >
                         <Bookmark
-                          className="h-4.5 w-4.5"
+                          className="h-4 w-4"
                           fill={savedAffirmation ? "currentColor" : "none"}
                         />
                       </button>
@@ -887,20 +889,20 @@ export function DashboardClient() {
                         aria-label="Share affirmation"
                         className="h-10 w-10 rounded-full bg-white/15 border border-white/25 text-white flex items-center justify-center hover:bg-white/25 backdrop-blur-sm"
                       >
-                        <Share2 className="h-4.5 w-4.5" />
+                        <Share2 className="h-4 w-4" />
                       </button>
                     </div>
                   </div>
                 </section>
 
                 {/* 14 DAY STREAK */}
-                <section className="rounded-3xl bg-white border border-lavender/50 shadow-card p-5 md:p-6">
+                <section className="md:col-span-2 rounded-3xl bg-white border border-lavender/50 shadow-card p-5 md:p-6">
                   <div className="flex items-start justify-between mb-3">
                     <div>
                       <h3 className="font-semibold text-brandText tracking-tight flex items-center gap-2">
-                        <Flame className="h-4.5 w-4.5 text-orange-500 fill-orange-400" />
+                        <Flame className="h-4 w-4 text-orange-500 fill-orange-400" />
                         14 Day Streak
-                        <Flame className="h-4.5 w-4.5 text-orange-500 fill-orange-400" />
+                        <Flame className="h-4 w-4 text-orange-500 fill-orange-400" />
                       </h3>
                       <p className="text-[12px] text-brandSecondaryText mt-1">
                         Consistency is the key to a better you.
@@ -908,13 +910,13 @@ export function DashboardClient() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-7 gap-2 mt-4 mb-2">
+                  <div className="grid grid-cols-7 gap-1 sm:gap-1.5 md:gap-2 mt-4 mb-2">
                     {["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].map((d, i) => {
                       const filled = i < 6;
                       return (
                         <div key={d} className="flex flex-col items-center gap-2">
                           <div
-                            className={`h-9 w-9 rounded-full flex items-center justify-center text-white text-xs ${
+                            className={`aspect-square w-full max-w-[2.25rem] rounded-full flex items-center justify-center text-white text-xs ${
                               filled
                                 ? ""
                                 : "bg-softLavender text-brandSecondaryText border border-lavender"
@@ -931,7 +933,7 @@ export function DashboardClient() {
                             }
                           >
                             {filled ? (
-                              <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none">
+                              <svg viewBox="0 0 20 20" className="h-3 w-3 sm:h-3.5 sm:w-3.5 md:h-4 md:w-4" fill="none">
                                 <path d="M5 10.5L8.5 14L15 7" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
                               </svg>
                             ) : null}
@@ -957,7 +959,7 @@ export function DashboardClient() {
                     <h4 className="font-semibold text-brandText mb-3 text-[15px]">
                       Quick Actions
                     </h4>
-                    <div className="space-y-2.5">
+                    <div className="grid gap-2.5 sm:grid-cols-2">
                       {[
                         {
                           icon: Headphones,
@@ -996,7 +998,7 @@ export function DashboardClient() {
                               color,
                             }}
                           >
-                            <Icon className="h-4.5 w-4.5" />
+                            <Icon className="h-4 w-4" />
                           </span>
                           <span className="flex-1 min-w-0">
                             <span className="block text-sm font-semibold text-brandText leading-tight">
@@ -1015,7 +1017,7 @@ export function DashboardClient() {
               </div>
 
               {/* CALMING AUDIO + SAVED FOR LATER */}
-              <div className="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
+              <div className="grid gap-6 2xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
                 {/* Audio */}
                 <section className="rounded-3xl bg-white border border-lavender/50 shadow-card p-5 md:p-6">
                   <div className="flex items-start justify-between mb-5">
@@ -1052,7 +1054,7 @@ export function DashboardClient() {
                           }`}
                         >
                           <div
-                            className="h-11 w-11 md:h-12 md:w-12 rounded-full flex items-center justify-center text-lg"
+                            className="aspect-square w-full max-w-[2.75rem] rounded-full flex items-center justify-center text-lg md:max-w-[3rem]"
                             style={{ background: s.bg }}
                           >
                             <span className="drop-shadow">{s.icon}</span>
@@ -1123,7 +1125,7 @@ export function DashboardClient() {
                       </div>
                     </div>
 
-                    <div className="flex items-center justify-between gap-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-3">
                       <div className="flex items-center gap-1 md:gap-2">
                         <button
                           type="button"
@@ -1145,13 +1147,13 @@ export function DashboardClient() {
                           }}
                         >
                           {audioPlaying ? (
-                            <svg viewBox="0 0 24 24" className="h-5 w-5 md:h-5.5 md:w-5.5" fill="currentColor">
+                            <svg viewBox="0 0 24 24" className="h-5 w-5 md:h-6 md:w-6" fill="currentColor">
                               <rect x="6" y="5" width="4" height="14" rx="1.5" />
                               <rect x="14" y="5" width="4" height="14" rx="1.5" />
                             </svg>
                           ) : (
                             <Play
-                              className="h-5 w-5 md:h-5.5 md:w-5.5 ml-0.5"
+                              className="h-5 w-5 md:h-6 md:w-6 ml-0.5"
                               fill="currentColor"
                             />
                           )}
@@ -1177,7 +1179,7 @@ export function DashboardClient() {
                           }`}
                         >
                           <Heart
-                            className="h-4.5 w-4.5"
+                            className="h-4 w-4"
                             fill={likedAffirmation ? "currentColor" : "none"}
                           />
                         </button>
@@ -1198,7 +1200,7 @@ export function DashboardClient() {
                             max={100}
                             value={volume}
                             onChange={(e) => setVolume(Number(e.target.value))}
-                            className="accent-brightPurple h-1 w-16 md:w-20"
+                            className="accent-brightPurple h-1 w-14 sm:w-16 md:w-20"
                           />
                         </div>
                       </div>
@@ -1312,8 +1314,8 @@ export function DashboardClient() {
                 </section>
               </div>
 
-              {/* PROFILE CARD (mobile-only at top of right col via grid order - keep here for desktop via xl-grid, mobile place after community) */}
-              <div className="order-last xl:order-none xl:hidden">
+              {/* Profile card — shown below xl (where the desktop right column is hidden) and placed after the feed via order-last */}
+              <div className="order-last xl:hidden">
                 <UserProfileCard user={user} />
               </div>
 
@@ -1333,7 +1335,7 @@ export function DashboardClient() {
                       </p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex flex-wrap items-center gap-2 sm:gap-3">
                     <div className="flex items-center gap-1 rounded-2xl bg-softLavender/60 p-1">
                       {FEED_TABS.map((t) => {
                         const active = feedTab === t;
@@ -1364,9 +1366,9 @@ export function DashboardClient() {
                   </div>
                 </div>
 
-                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                <div className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-3">
                   {communityPosts.length === 0 ? (
-                    <div className="md:col-span-2 xl:col-span-3 rounded-2xl bg-softLavender/50 p-8 text-center">
+                    <div className="sm:col-span-2 2xl:col-span-3 rounded-2xl bg-softLavender/50 p-8 text-center">
                       <p className="text-[13.5px] font-semibold text-brandText">
                         No community posts yet.
                       </p>
@@ -1474,7 +1476,7 @@ export function DashboardClient() {
                     <circle cx="480" cy="90" r="2" />
                   </g>
                 </svg>
-                <div className="relative flex items-center gap-4 md:gap-6">
+                <div className="relative flex flex-wrap items-center gap-4 md:gap-6">
                   <div className="h-14 w-14 md:h-16 md:w-16 rounded-2xl shrink-0 flex items-center justify-center"
                     style={{ background: "linear-gradient(135deg,#C9B8F3,#6D3FE8)" }}
                   >
@@ -1493,7 +1495,7 @@ export function DashboardClient() {
                     size="md"
                     variant="secondary"
                     asChild
-                    className="bg-white !text-deepPurple hover:!bg-white/90 border-0 shadow-card shrink-0"
+                    className="w-full justify-center bg-white !text-deepPurple hover:!bg-white/90 border-0 shadow-card sm:w-auto"
                     rightIcon={<ArrowRight className="h-4 w-4" />}
                   >
                     <Link href="/premium">Upgrade to Premium</Link>
@@ -1513,7 +1515,7 @@ export function DashboardClient() {
       {/* New Post Modal */}
       {newPostOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-deepPurple/40 backdrop-blur-sm">
-          <div className="w-full max-w-lg rounded-3xl bg-white border border-lavender/50 shadow-2xl p-6">
+          <div className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-3xl bg-white border border-lavender/50 shadow-2xl p-5 sm:p-6">
             <div className="flex items-start justify-between mb-5">
               <div>
                 <h3 className="text-lg font-semibold text-brandText">
@@ -1581,10 +1583,11 @@ export function DashboardClient() {
               </div>
             </div>
 
-            <div className="mt-5 flex items-center justify-end gap-3">
+            <div className="mt-5 flex flex-wrap items-center justify-end gap-2 sm:gap-3">
               <Button
                 size="md"
                 variant="ghost"
+                className="flex-1 sm:flex-none"
                 onClick={() => {
                   if (newPostSubmitting) return;
                   setNewPostOpen(false);
@@ -1597,6 +1600,7 @@ export function DashboardClient() {
               <Button
                 size="md"
                 variant="primary"
+                className="flex-1 sm:flex-none"
                 rightIcon={<Plus className="h-4 w-4" />}
                 onClick={onCreateNewPost}
                 disabled={!newPostContent.trim() || newPostSubmitting}

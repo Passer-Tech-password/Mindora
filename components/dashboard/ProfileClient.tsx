@@ -159,32 +159,32 @@ export function ProfileClient() {
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-4">
-              <div className="rounded-3xl bg-white border border-lavender/50 p-5 shadow-card text-center">
-                <div className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-softLavender text-brightPurple mb-3 mx-auto">
+            <div className="grid grid-cols-3 gap-2 sm:gap-4">
+              <div className="rounded-3xl bg-white border border-lavender/50 p-3 sm:p-5 shadow-card text-center">
+                <div className="inline-flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-xl bg-softLavender text-brightPurple mb-3 mx-auto">
                   <Flame className="h-5 w-5" />
                 </div>
-                <div className="text-2xl font-bold text-brandText">
+                <div className="text-xl sm:text-2xl font-bold text-brandText">
                   {user.stats.currentStreak}
                 </div>
                 <div className="mt-1 text-xs text-brandSecondaryText">
                   Day streak
                 </div>
               </div>
-              <div className="rounded-3xl bg-white border border-lavender/50 p-5 shadow-card text-center">
-                <div className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-softLavender text-brightPurple mb-3 mx-auto">
+              <div className="rounded-3xl bg-white border border-lavender/50 p-3 sm:p-5 shadow-card text-center">
+                <div className="inline-flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-xl bg-softLavender text-brightPurple mb-3 mx-auto">
                   <Bookmark className="h-5 w-5" />
                 </div>
-                <div className="text-2xl font-bold text-brandText">
+                <div className="text-xl sm:text-2xl font-bold text-brandText">
                   {user.stats.savedItems}
                 </div>
                 <div className="mt-1 text-xs text-brandSecondaryText">Saves</div>
               </div>
-              <div className="rounded-3xl bg-white border border-lavender/50 p-5 shadow-card text-center">
-                <div className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-softLavender text-brightPurple mb-3 mx-auto">
+              <div className="rounded-3xl bg-white border border-lavender/50 p-3 sm:p-5 shadow-card text-center">
+                <div className="inline-flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-xl bg-softLavender text-brightPurple mb-3 mx-auto">
                   <Calendar className="h-5 w-5" />
                 </div>
-                <div className="text-sm font-semibold text-brandText pt-2">
+                <div className="text-xs sm:text-sm font-semibold text-brandText pt-2 break-words">
                   {formatJoined(user.createdAt)}
                 </div>
                 <div className="mt-1 text-xs text-brandSecondaryText">
