@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useRouter, usePathname } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { Loader2, ShieldAlert, ArrowRight, LogIn } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/Button";
@@ -18,14 +18,8 @@ function resolveNormalizedRole(user: ReturnType<typeof useAuth>["user"]): "admin
 export function AdminRoute({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
   const router = useRouter();
-  const pathname = usePathname();
   const redirected = React.useRef<"login" | "dashboard" | null>(null);
   const checkedAfterSettle = React.useRef(false);
-
-  const redirectTo = React.useMemo(() => {
-    if (typeof window === "undefined") return "/admin";
-    return pathname || "/admin";
-  }, [pathname]);
 
   const role = React.useMemo(() => resolveNormalizedRole(user), [user]);
   const settled = !isLoading && (user !== null || checkedAfterSettle.current);
@@ -40,7 +34,7 @@ export function AdminRoute({ children }: { children: React.ReactNode }) {
     if (!user) {
       if (redirected.current !== "login") {
         redirected.current = "login";
-        router.replace("/login?from=" + encodeURIComponent(redirectTo));
+        router.replace("/admin/login");
       }
       return;
     }
@@ -48,7 +42,7 @@ export function AdminRoute({ children }: { children: React.ReactNode }) {
       redirected.current = "dashboard";
       router.replace("/dashboard");
     }
-  }, [user, isLoading, role, router, redirectTo]);
+  }, [user, isLoading, role, router]);
 
   if (isLoading || !settled) {
     return (
@@ -72,7 +66,7 @@ export function AdminRoute({ children }: { children: React.ReactNode }) {
           <p className="text-brandText/70 mb-6">
             Sign in with your admin credentials to access the Mindora Admin Panel.
           </p>
-          <Link href={`/login?from=${encodeURIComponent(redirectTo)}`}>
+          <Link href="/admin/login">
             <Button className="w-full gap-2">
               Sign in to admin <ArrowRight className="h-4 w-4" />
             </Button>
@@ -102,7 +96,7 @@ export function AdminRoute({ children }: { children: React.ReactNode }) {
                 Back to my dashboard
               </Button>
             </Link>
-            <Link href={`/login?from=${encodeURIComponent("/admin")}`}>
+            <Link href="/admin/login">
               <Button className="w-full gap-2">
                 Sign in as different user <ArrowRight className="h-4 w-4" />
               </Button>
